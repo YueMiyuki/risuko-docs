@@ -1,0 +1,70 @@
+---
+title: Node.js API
+description: Use the Risuko download engine from Node.js with native bindings.
+icon: Code
+---
+
+`risuko-js` provides native Node.js bindings to the Risuko download engine via [napi-rs](https://napi.rs). It ships as pre-built platform-specific binaries — no Rust toolchain needed.
+
+## Installation
+
+```package-install
+npm install risuko-js
+```
+
+## Overview
+
+The API is organized into six areas:
+
+| Area | Functions |
+|------|-----------|
+| [Engine Lifecycle](/docs/node-api/engine) | `startEngine`, `stopEngine` |
+| [Task Operations](/docs/node-api/tasks) | `addUri`, `addTorrent`, `addMagnet`, `addEd2k`, `addM3u8`, `addFtp`, `pause`, `unpause`, `remove`, `pauseAll`, `unpauseAll` |
+| [Queries](/docs/node-api/tasks#queries) | `tellStatus`, `tellActive`, `tellWaiting`, `tellStopped`, `getGlobalStat`, `getFiles`, `getPeers`, `getUris` |
+| [Events](/docs/node-api/events) | `onEvent` |
+| [Options](/docs/node-api/options) | `getOption`, `getGlobalOption`, `changeOption`, `changeGlobalOption` |
+| [Session](/docs/node-api/engine#session-management) | `saveSession`, `purgeDownloadResult`, `removeDownloadResult` |
+
+## Quick Example
+
+```js
+import {
+  startEngine,
+  addUri,
+  tellStatus,
+  onEvent,
+  stopEngine,
+} from "risuko-js";
+
+await startEngine({ rpcPort: 16800 });
+
+onEvent((event, gid) => {
+  console.log(`[${event}] ${gid}`);
+});
+
+const gid = await addUri(
+  ["https://example.com/file.zip"],
+  { split: "16", dir: "/downloads" }
+);
+
+const status = await tellStatus(gid);
+console.log(`Progress: ${status.completedLength}/${status.totalLength}`);
+
+await stopEngine();
+```
+
+## TypeScript Support
+
+Full TypeScript declarations are included. All types are exported from the main module:
+
+```ts
+import type { EngineConfig, EngineEventName } from "risuko-js";
+```
+
+<Cards>
+  <Card title="Engine Lifecycle" href="/docs/node-api/engine" />
+  <Card title="Task Operations" href="/docs/node-api/tasks" />
+  <Card title="Events" href="/docs/node-api/events" />
+  <Card title="Options" href="/docs/node-api/options" />
+  <Card title="Examples" href="/docs/node-api/examples" />
+</Cards>

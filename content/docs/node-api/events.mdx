@@ -1,0 +1,129 @@
+---
+title: Events
+description: Subscribe to download events from the Risuko engine.
+---
+
+## onEvent
+
+Register a callback to receive download events from the engine. The callback is invoked on a background thread via `ThreadsafeFunction`.
+
+```ts
+type EngineEventName =
+  | "risuko.onDownloadStart"
+  | "risuko.onDownloadPause"
+  | "risuko.onDownloadStop"
+  | "risuko.onDownloadComplete"
+  | "risuko.onDownloadError"
+  | "risuko.onBtDownloadComplete";
+
+function onEvent(
+  callback: (eventName: EngineEventName, gid: string) => void
+): void;
+```
+
+<Callout type="warn">
+Call `onEvent` after `startEngine` but before adding downloads to avoid missing events.
+</Callout>
+
+## Event Types
+
+### risuko.onDownloadStart
+
+Fired when a download begins or resumes.
+
+### risuko.onDownloadPause
+
+Fired when a download is paused.
+
+### risuko.onDownloadStop
+
+Fired when a download is stopped or removed.
+
+### risuko.onDownloadComplete
+
+Fired when a download finishes successfully.
+
+### risuko.onDownloadError
+
+Fired when a download encounters an error. Use `tellStatus(gid)` to get the error details.
+
+### risuko.onBtDownloadComplete
+
+Fired when a BitTorrent download finishes downloading (but may still be seeding). This is distinct from `onDownloadComplete`, which fires after seeding is also done.
+
+## Examples
+
+### Basic event logging
+
+```js
+import { startEngine, addUri, onEvent } from "risuko-js";
+
+await startEngine();
+
+onEvent((event, gid) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${event} ${gid}`);
+});
+
+await addUri(["https://example.com/file.zip"]);
+```
+
+### Waiting for completion
+
+```js
+import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+
+await startEngine();
+
+function downloadAndWait(urls, options) {
+  return new Promise(async (resolve, reject) => {
+    const gid = await addUri(urls, options);
+
+    onEvent((event, eventGid) => {
+      if (eventGid !== gid) return;
+
+      switch (event) {
+        case "risuko.onDownloadComplete":
+          resolve(gid);
+          break;
+        case "risuko.onDownloadError":
+          reject(new Error(`Download failed: ${gid}`));
+          break;
+      }
+    });
+  });
+}
+
+await downloadAndWait(["https://example.com/file.zip"], { dir: "/tmp" });
+await stopEngine();
+```
+
+### Error handling
+
+```js
+import { startEngine, addUri, onEvent, tellStatus } from "risuko-js";
+
+await startEngine();
+
+onEvent(async (event, gid) => {
+  if (event === "risuko.onDownloadError") {
+    const status = await tellStatus(gid);
+    console.error(`Download ${gid} failed:`);
+    console.error(`  Code: ${status.errorCode}`);
+    console.error(`  Message: ${status.errorMessage}`);
+  }
+});
+```
+
+### Torrent seeding events
+
+```js
+onEvent((event, gid) => {
+  if (event === "risuko.onBtDownloadComplete") {
+    console.log(`Torrent ${gid} download complete, now seeding...`);
+  }
+  if (event === "risuko.onDownloadComplete") {
+    console.log(`Torrent ${gid} fully complete (seeding done)`);
+  }
+});
+```

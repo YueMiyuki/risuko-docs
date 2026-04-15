@@ -1,0 +1,131 @@
+---
+title: RPC Protocol
+description: The JSON-RPC interface used by the CLI and external clients.
+---
+
+Risuko exposes a JSON-RPC 2.0 server over HTTP. The CLI uses this interface, and you can also build custom clients.
+
+## Connection
+
+The RPC server listens on `http://localhost:16800/jsonrpc` by default.
+
+## Request Format
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "risuko.addUri",
+  "params": [
+    ["https://example.com/file.zip"],
+    { "split": "16", "dir": "/downloads" }
+  ]
+}
+```
+
+## Response Format
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "result": "a1b2c3d4e5f6"
+}
+```
+
+## Available Methods
+
+### Task Management
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `risuko.addUri` | `[uris[], options?]` | GID string |
+| `risuko.addTorrent` | `[base64Data, uris[], options?]` | GID string |
+| `risuko.addEd2k` | `[uri, options?]` | GID string |
+| `risuko.pause` | `[gid]` | — |
+| `risuko.unpause` | `[gid]` | — |
+| `risuko.remove` | `[gid]` | — |
+| `risuko.forcePause` | `[gid]` | — |
+| `risuko.forceRemove` | `[gid]` | — |
+| `risuko.pauseAll` | — | — |
+| `risuko.unpauseAll` | — | — |
+| `risuko.forcePauseAll` | — | — |
+| `risuko.changePosition` | `[gid, pos, how]` | New position |
+
+### Queries
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `risuko.tellStatus` | `[gid, keys?]` | Status object |
+| `risuko.tellActive` | `[keys?]` | Status object array |
+| `risuko.tellWaiting` | `[offset, num, keys?]` | Status object array |
+| `risuko.tellStopped` | `[offset, num, keys?]` | Status object array |
+| `risuko.getGlobalStat` | — | Stat object |
+| `risuko.getFiles` | `[gid]` | File array |
+| `risuko.getPeers` | `[gid]` | Peer array |
+| `risuko.getUris` | `[gid]` | URI array |
+| `risuko.getServers` | `[gid]` | Server array |
+| `risuko.getVersion` | — | Version object |
+| `risuko.getSessionInfo` | — | Session info object |
+
+### Options
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `risuko.getOption` | `[gid]` | Options object |
+| `risuko.getGlobalOption` | — | Options object |
+| `risuko.changeOption` | `[gid, options]` | — |
+| `risuko.changeGlobalOption` | `[options]` | — |
+
+### Session
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `risuko.saveSession` | — | — |
+| `risuko.purgeDownloadResult` | — | — |
+| `risuko.removeDownloadResult` | `[gid]` | — |
+| `risuko.shutdown` | — | — |
+| `risuko.forceShutdown` | — | — |
+
+## Example: curl
+
+```bash
+# Add a download
+curl -X POST http://localhost:16800/jsonrpc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "risuko.addUri",
+    "params": [["https://example.com/file.zip"], {"split": "16"}]
+  }'
+
+# Check status
+curl -X POST http://localhost:16800/jsonrpc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "risuko.tellActive",
+    "params": []
+  }'
+```
+
+## Error Responses
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "error": {
+    "code": -32600,
+    "message": "GID a1b2c3d4 not found"
+  }
+}
+```
+
+Standard JSON-RPC error codes apply. Application-specific errors use codes in the `-32000` to `-32099` range.
+
+## aria2 Compatibility
+
+The RPC server accepts both `risuko.*` and `aria2.*` method prefixes. For example, `aria2.addUri` is treated as `risuko.addUri`. This makes it compatible with existing aria2 RPC clients.

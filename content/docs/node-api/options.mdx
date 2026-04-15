@@ -1,0 +1,92 @@
+---
+title: Options
+description: Read and modify engine and per-task options at runtime.
+---
+
+## Per-Task Options
+
+### getOption
+
+Get the options for a specific download task.
+
+```ts
+function getOption(gid: string): Promise<Record<string, unknown>>;
+```
+
+```js
+const options = await getOption(gid);
+console.log(options.dir);     // Download directory
+console.log(options.split);   // Number of connections
+```
+
+### changeOption
+
+Change options for a running task. Only some options can be changed after a download starts.
+
+```ts
+function changeOption(
+  gid: string,
+  options: Record<string, unknown>
+): Promise<void>;
+```
+
+```js
+// Limit download speed to 1 MB/s
+await changeOption(gid, { "max-download-limit": "1048576" });
+```
+
+### Changeable Options
+
+These options can be modified on a running task:
+
+| Key | Description |
+|-----|-------------|
+| `max-download-limit` | Max download speed in bytes/sec (`"0"` for unlimited) |
+| `max-upload-limit` | Max upload speed in bytes/sec (BitTorrent) |
+
+## Global Options
+
+### getGlobalOption
+
+Get the current global engine options.
+
+```ts
+function getGlobalOption(): Promise<Record<string, unknown>>;
+```
+
+```js
+const global = await getGlobalOption();
+console.log(global["max-concurrent-downloads"]);
+console.log(global["max-overall-download-limit"]);
+```
+
+### changeGlobalOption
+
+Change global engine options. These affect new downloads and some aspects of running downloads.
+
+```ts
+function changeGlobalOption(
+  options: Record<string, unknown>
+): Promise<void>;
+```
+
+```js
+// Limit to 3 concurrent downloads
+await changeGlobalOption({ "max-concurrent-downloads": "3" });
+
+// Set global speed limit to 10 MB/s
+await changeGlobalOption({ "max-overall-download-limit": "10485760" });
+```
+
+### Global Option Reference
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `dir` | OS default | Default download directory |
+| `max-concurrent-downloads` | `"5"` | Maximum number of parallel downloads |
+| `max-overall-download-limit` | `"0"` | Global download speed limit (bytes/s, `"0"` = unlimited) |
+| `max-overall-upload-limit` | `"0"` | Global upload speed limit (bytes/s) |
+| `split` | `"16"` | Default number of connections for new downloads |
+| `user-agent` | Chrome UA string | Default user agent string |
+| `all-proxy` | — | Default proxy URL |
+| `rpc-listen-port` | `"16800"` | RPC server port |

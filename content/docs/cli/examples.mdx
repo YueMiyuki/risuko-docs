@@ -1,0 +1,164 @@
+---
+title: CLI Examples
+description: Practical examples for common Risuko CLI workflows.
+---
+
+## Basic Downloads
+
+### HTTP/HTTPS file
+
+```bash
+risuko download https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso \
+  -t 16 \
+  -d ~/Downloads
+```
+
+### With custom filename
+
+```bash
+risuko download https://example.com/archive.tar.gz -o my-archive.tar.gz
+```
+
+### Behind a proxy
+
+```bash
+risuko download https://example.com/file.zip --proxy http://proxy.corp.com:8080
+```
+
+### With authentication
+
+```bash
+risuko download https://example.com/private/file.zip \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+### With cookies
+
+```bash
+risuko download https://example.com/session-file.zip \
+  --cookie "session_id=abc123; user=john"
+```
+
+## BitTorrent
+
+### Magnet link
+
+```bash
+risuko download "magnet:?xt=urn:btih:abc123def456..." -d ~/Downloads/torrents
+```
+
+### .torrent file with seeding control
+
+```bash
+risuko download ./linux-distro.torrent \
+  --seed-ratio 2.0 \
+  --seed-time 120
+```
+
+## Running as a Server
+
+### Start a headless server
+
+```bash
+# Default port 16800
+risuko serve
+
+# Custom port
+risuko serve --rpc-port 6800
+```
+
+### Remote downloads with a running server
+
+```bash
+# In another terminal (or on another machine)
+risuko download https://example.com/file.zip --rpc-port 6800
+risuko status --rpc-port 6800
+```
+
+### Graceful shutdown
+
+```bash
+risuko shutdown --rpc-port 6800
+```
+
+## RSS Feeds
+
+### Subscribe to a feed
+
+```bash
+risuko rss add "https://nyaa.si/?page=rss"
+```
+
+### List subscriptions
+
+```bash
+risuko rss list
+```
+
+### Force refresh
+
+```bash
+risuko rss refresh
+```
+
+### Remove a feed
+
+```bash
+# Get the feed ID from `rss list`
+risuko rss remove feed_abc123
+```
+
+## Configuration
+
+### View all settings
+
+```bash
+risuko config list
+```
+
+### Change download directory
+
+```bash
+risuko config set dir '"/home/user/downloads"'
+```
+
+### Set max concurrent downloads
+
+```bash
+risuko config set max-concurrent-downloads '"5"'
+```
+
+### Check a specific setting
+
+```bash
+risuko config get dir
+```
+
+## Scripting
+
+### JSON output for automation
+
+```bash
+# Get active downloads as JSON
+risuko status --json | jq '.[] | select(.status == "active")'
+
+# Get download speed
+risuko global-stat --json | jq '.downloadSpeed'
+```
+
+### Download and wait
+
+```bash
+# The download command blocks until complete (with progress bar)
+risuko download https://example.com/file.zip && echo "Done!"
+```
+
+### Batch downloads from a file
+
+```bash
+# urls.txt contains one URL per line
+while IFS= read -r url; do
+  risuko download "$url" -d ~/Downloads &
+done < urls.txt
+wait
+```

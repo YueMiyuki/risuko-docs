@@ -1,0 +1,82 @@
+---
+title: Architecture
+description: How Risuko is structured — the engine, traits, and distribution model.
+icon: Layers
+---
+
+Risuko follows a layered architecture where the core download engine is fully decoupled from any runtime environment.
+
+## High-Level Structure
+
+<div className="my-6 space-y-4 text-sm">
+  <div className="rounded-lg border bg-fd-card p-4">
+    <p className="mb-3 text-center font-semibold text-fd-foreground">Consumers</p>
+    <div className="grid grid-cols-3 gap-3 text-center">
+      <div className="rounded-md border bg-fd-background px-3 py-2">Desktop App<br/><span className="text-fd-muted-foreground text-xs">(Tauri + Vue)</span></div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">CLI<br/><span className="text-fd-muted-foreground text-xs">(risuko-cli)</span></div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Node.js API<br/><span className="text-fd-muted-foreground text-xs">(risuko-js)</span></div>
+    </div>
+  </div>
+
+  <div className="flex justify-center">
+    <div className="rounded-md border bg-fd-accent px-4 py-1.5 text-center font-mono text-xs">JSON-RPC</div>
+  </div>
+
+  <div className="rounded-lg border bg-fd-card p-4">
+    <p className="mb-3 text-center font-semibold text-fd-foreground">risuko-engine <span className="font-normal text-fd-muted-foreground">(Rust crate)</span></p>
+    <div className="grid grid-cols-3 gap-3 text-center">
+      <div className="rounded-md border bg-fd-background px-3 py-2">Config Module</div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Engine Manager</div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Protocol Handlers<br/><span className="text-fd-muted-foreground text-xs">HTTP, BT, ED2K, M3U8, FTP, RSS</span></div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">RPC Server</div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Events Broadcast</div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Traits<br/><span className="text-fd-muted-foreground text-xs">ConfigDir, Events, Storage</span></div>
+    </div>
+  </div>
+</div>
+
+## Cargo Workspace
+
+The project is organized as a Cargo workspace with four crates:
+
+| Crate | Type | Description |
+|-------|------|-------------|
+| `risuko-engine` | Library | Core engine with zero runtime dependencies |
+| `risuko-cli` | Binary | Standalone CLI tool |
+| `risuko-napi` | cdylib | Native Node.js bindings |
+| `risuko` (root) | Binary | Tauri desktop application |
+
+```toml
+[workspace]
+members = ["risuko-engine", "risuko-cli", "risuko-napi"]
+```
+
+## Key Design Decisions
+
+### Trait-Based Decoupling
+
+The engine uses three traits to abstract away runtime-specific behavior. This lets the same engine code run inside Tauri, as a standalone CLI, or embedded in Node.js.
+
+See [Trait System](/docs/architecture/traits) for details.
+
+### JSON-RPC for CLI
+
+The CLI communicates with the engine via JSON-RPC over HTTP. This means:
+
+- The `serve` command starts a headless engine with an RPC server
+- All other commands are RPC clients
+- The `download` command auto-starts a temporary engine if none is running
+
+### Global Singleton for NAPI
+
+The Node.js bindings use a global `LazyLock<Mutex<Option<NapiEngine>>>` singleton. This ensures only one engine instance exists per process, which matches the `startEngine`/`stopEngine` lifecycle API.
+
+### Platform-Specific npm Packages
+
+Both `risuko-cli` and `risuko-js` use the esbuild distribution pattern: a main package with `optionalDependencies` pointing to platform-specific packages. npm automatically installs only the package matching the current platform.
+
+<Cards>
+  <Card title="Trait System" href="/docs/architecture/traits" />
+  <Card title="Protocols" href="/docs/architecture/protocols" />
+  <Card title="RPC Protocol" href="/docs/architecture/rpc" />
+</Cards>

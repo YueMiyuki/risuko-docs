@@ -1,0 +1,107 @@
+---
+title: Engine Lifecycle
+description: Start, stop, and manage the Risuko engine in Node.js.
+---
+
+## startEngine
+
+Initialize and start the download engine. Must be called before any other API function.
+
+```ts
+function startEngine(config?: EngineConfig): Promise<void>;
+```
+
+### EngineConfig
+
+```ts
+interface EngineConfig {
+  /** Custom config directory. Default: OS config dir / dev.risuko.app */
+  configDir?: string;
+  /** RPC listen port. Default: 16800 */
+  rpcPort?: number;
+  /** Whether to start the RPC server. Default: true */
+  enableRpc?: boolean;
+}
+```
+
+### Examples
+
+```js
+import { startEngine } from "risuko-js";
+
+// Use defaults
+await startEngine();
+
+// Custom configuration
+await startEngine({
+  configDir: "/path/to/config",
+  rpcPort: 6800,
+  enableRpc: true,
+});
+```
+
+<Callout type="warn">
+Only one engine instance can run per process. Calling `startEngine` when the engine is already running throws an error.
+</Callout>
+
+### What Happens on Start
+
+1. The config directory is created (if it doesn't exist)
+2. `system.json` and `user.json` config files are loaded (or defaults created)
+3. The download directory is created
+4. The task manager is initialized
+5. Session is restored (previously active downloads resume)
+6. The RPC server is started (if `enableRpc` is true)
+7. Event broadcasting and auto-save tasks begin
+
+## stopEngine
+
+Gracefully shut down the engine. Saves the current session and stops all running tasks.
+
+```ts
+function stopEngine(): Promise<void>;
+```
+
+```js
+import { stopEngine } from "risuko-js";
+
+await stopEngine();
+```
+
+## Session Management
+
+### saveSession
+
+Persist the current download session to disk. The session is also auto-saved periodically.
+
+```ts
+function saveSession(): Promise<void>;
+```
+
+### purgeDownloadResult
+
+Remove all completed, errored, and removed download results from memory.
+
+```ts
+function purgeDownloadResult(): Promise<void>;
+```
+
+### removeDownloadResult
+
+Remove a specific download result by GID.
+
+```ts
+function removeDownloadResult(gid: string): Promise<void>;
+```
+
+### Example
+
+```js
+import { saveSession, purgeDownloadResult } from "risuko-js";
+
+// Force save
+await saveSession();
+
+// Clean up finished downloads
+await purgeDownloadResult();
+```

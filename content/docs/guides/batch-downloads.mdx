@@ -1,0 +1,113 @@
+---
+title: Batch Downloads
+description: Download multiple files efficiently with Risuko.
+---
+
+## CLI Batch Downloads
+
+### From a URL List File
+
+```bash
+# urls.txt — one URL per line
+while IFS= read -r url; do
+  risuko download "$url" -d ~/Downloads
+done < urls.txt
+```
+
+### Parallel with Wait
+
+```bash
+# Download multiple files concurrently
+risuko download https://example.com/file1.zip &
+risuko download https://example.com/file2.zip &
+risuko download https://example.com/file3.zip &
+wait
+echo "All downloads complete"
+```
+
+### With JSON Scripting
+
+```bash
+# Get all GIDs, then wait for completion
+for url in $(cat urls.txt); do
+  risuko download "$url" --json 2>/dev/null &
+done
+wait
+
+# Check final status
+risuko status --json | jq '.[] | {gid, status, name: .files[0].path}'
+```
+
+## Node.js Batch Downloads
+
+### Simple Batch
+
+```js
+import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+
+const urls = [
+  "https://example.com/file1.zip",
+  "https://example.com/file2.zip",
+  "https://example.com/file3.zip",
+];
+
+await startEngine();
+
+const gids = [];
+for (const url of urls) {
+  const gid = await addUri([url], { dir: "/downloads" });
+  gids.push(gid);
+}
+
+console.log(`Started ${gids.length} downloads`);
+```
+
+### With Concurrency Control
+
+```js
+import { startEngine, changeGlobalOption, addUri, onEvent } from "risuko-js";
+
+await startEngine();
+
+// Limit to 3 concurrent downloads
+await changeGlobalOption({ "max-concurrent-downloads": "3" });
+
+const urls = Array.from({ length: 20 }, (_, i) =>
+  `https://example.com/file${i + 1}.zip`
+);
+
+let completed = 0;
+onEvent((event) => {
+  if (event === "risuko.onDownloadComplete") {
+    completed++;
+    console.log(`Progress: ${completed}/${urls.length}`);
+  }
+});
+
+for (const url of urls) {
+  await addUri([url], { dir: "/downloads" });
+}
+```
+
+### With Speed Limiting
+
+```js
+import { startEngine, changeGlobalOption } from "risuko-js";
+
+await startEngine();
+
+// Limit total bandwidth to 50 MB/s
+await changeGlobalOption({
+  "max-overall-download-limit": String(50 * 1024 * 1024),
+});
+```
+
+## Global Speed Limiting via CLI
+
+```bash
+# Set global speed limit
+risuko config set max-overall-download-limit '"52428800"'  # 50 MB/s
+
+# Set per-download connection limit
+risuko config set max-connection-per-server '"8"'
+```

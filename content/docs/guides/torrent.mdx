@@ -1,0 +1,110 @@
+---
+title: BitTorrent Downloads
+description: Guide to downloading torrents with Risuko.
+---
+
+Risuko includes a full BitTorrent client powered by [librqbit](https://github.com/ikatson/librqbit).
+
+## Magnet Links
+
+### CLI
+
+```bash
+risuko download "magnet:?xt=urn:btih:abc123def456..."
+```
+
+### Node.js
+
+```js
+import { addMagnet } from "risuko-js";
+
+const gid = await addMagnet("magnet:?xt=urn:btih:abc123def456...", {
+  dir: "/downloads",
+});
+```
+
+## .torrent Files
+
+### CLI
+
+```bash
+risuko download ./ubuntu-24.04.torrent -d ~/Downloads
+```
+
+### Node.js
+
+```js
+import { readFile } from "node:fs/promises";
+import { addTorrent } from "risuko-js";
+
+const data = await readFile("./ubuntu-24.04.torrent");
+const gid = await addTorrent(data, { dir: "/downloads" });
+```
+
+## Seeding Control
+
+By default, Risuko does **not** seed after a torrent completes (`seed-time` and `seed-ratio` both default to `0`). To enable seeding, set a `seed-time` greater than `0`:
+
+### Seed Ratio
+
+Stop seeding when the upload/download ratio reaches a threshold:
+
+```bash
+risuko download "magnet:?xt=..." --seed-ratio 1.0
+```
+
+```js
+await addMagnet("magnet:?xt=...", { "seed-ratio": "1.0" });
+```
+
+A ratio of `1.0` means upload the same amount as downloaded.
+
+### Seed Time
+
+Seed for a number of minutes after download completes:
+
+```bash
+risuko download "magnet:?xt=..." --seed-time 60
+```
+
+```js
+await addMagnet("magnet:?xt=...", { "seed-time": "60" });
+```
+
+<Callout type="info">
+Seeding only occurs when `seed-time` is greater than `0`. The `seed-ratio` limit is checked alongside `seed-time` during seeding.
+</Callout>
+
+### Combined Limits
+
+When both are set, seeding stops when **either** limit is reached first.
+
+## Events
+
+BitTorrent downloads emit two completion events:
+
+1. **`risuko.onBtDownloadComplete`** — Download finished, now seeding
+2. **`risuko.onDownloadComplete`** — Seeding finished (or limits reached)
+
+```js
+onEvent((event, gid) => {
+  if (event === "risuko.onBtDownloadComplete") {
+    console.log("Download done, seeding...");
+  }
+  if (event === "risuko.onDownloadComplete") {
+    console.log("Fully complete");
+  }
+});
+```
+
+## Peer Information
+
+Check connected peers for a torrent download:
+
+```bash
+risuko peers <gid>
+```
+
+```js
+const peers = await getPeers(gid);
+```

@@ -1,0 +1,272 @@
+---
+title: Command Reference
+description: Detailed reference for all Risuko CLI commands.
+---
+
+## download
+
+Download a file from a URL, magnet link, or `.torrent` file.
+
+```bash
+risuko download <url> [options]
+```
+
+If no running engine is detected, a temporary headless instance is started automatically.
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `url` | URL, magnet link, or path to a `.torrent` file |
+
+### Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--threads` | `-t` | `16` | Number of connections per download |
+| `--dir` | `-d` | — | Download directory |
+| `--out` | `-o` | — | Output filename |
+| `--header` | `-H` | — | HTTP header (repeatable) |
+| `--user-agent` | — | — | User agent string |
+| `--proxy` | — | — | Proxy server URL |
+| `--referer` | — | — | HTTP referer |
+| `--cookie` | — | — | Cookie string |
+| `--seed-ratio` | — | — | BitTorrent seed ratio (e.g. `1.0`) |
+| `--seed-time` | — | — | BitTorrent seed time in minutes |
+| `--rpc-port` | — | `16800` | RPC port to connect to |
+| `--json` | — | — | Output as JSON |
+
+### Examples
+
+```bash
+# Basic HTTP download
+risuko download https://example.com/file.zip
+
+# With 32 connections to a specific directory
+risuko download https://example.com/file.zip -t 32 -d ~/Downloads
+
+# Torrent with seeding limits
+risuko download "magnet:?xt=urn:btih:abc123" --seed-ratio 1.0 --seed-time 60
+
+# With authentication header
+risuko download https://example.com/private.zip -H "Authorization: Bearer token"
+
+# From a .torrent file
+risuko download ./ubuntu-24.04.torrent -d ~/Downloads
+```
+
+---
+
+## status
+
+Show status of active, waiting, and stopped downloads.
+
+```bash
+risuko status [options]
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--gid` | — | Show a specific task by GID |
+| `--rpc-port` | `16800` | RPC port to connect to |
+| `--json` | — | Output as JSON |
+
+### Output
+
+Without `--gid`, displays a table of all downloads:
+
+```
+GID       STATUS    PROGRESS  SPEED      NAME
+a1b2c3d4  active    64.2%     12.4 MB/s  ubuntu-24.04-server-amd64.iso
+e5f6a7b8  waiting   0.0%      —          archlinux-2024.04.01-x86_64.iso
+c9d0e1f2  complete  100.0%    —          node-v22.0.0.tar.gz
+```
+
+With `--gid`, shows detailed information for a single task.
+
+---
+
+## pause
+
+Pause a specific download.
+
+```bash
+risuko pause <gid> [--rpc-port PORT]
+```
+
+---
+
+## resume
+
+Resume a paused download.
+
+```bash
+risuko resume <gid> [--rpc-port PORT]
+```
+
+---
+
+## remove
+
+Remove a download from the engine. Active downloads are stopped first.
+
+```bash
+risuko remove <gid> [--rpc-port PORT]
+```
+
+---
+
+## pause-all
+
+Pause all active downloads.
+
+```bash
+risuko pause-all [--rpc-port PORT]
+```
+
+---
+
+## resume-all
+
+Resume all paused downloads.
+
+```bash
+risuko resume-all [--rpc-port PORT]
+```
+
+---
+
+## global-stat
+
+Show global download and upload statistics.
+
+```bash
+risuko global-stat [--rpc-port PORT] [--json]
+```
+
+### Output
+
+```
+Download Speed: 24.8 MB/s
+Upload Speed:   1.2 MB/s
+Active:         3
+Waiting:        2
+Stopped:        15
+```
+
+---
+
+## files
+
+Show files belonging to a download.
+
+```bash
+risuko files <gid> [--rpc-port PORT] [--json]
+```
+
+---
+
+## peers
+
+Show connected peers for a BitTorrent download.
+
+```bash
+risuko peers <gid> [--rpc-port PORT] [--json]
+```
+
+---
+
+## purge
+
+Remove completed, errored, and removed download results from the engine's memory.
+
+```bash
+risuko purge [--rpc-port PORT]
+```
+
+---
+
+## config
+
+Manage engine configuration. Configuration is stored as JSON files in the config directory.
+
+### config get
+
+```bash
+risuko config get <key>
+```
+
+### config set
+
+```bash
+risuko config set <key> <value>
+```
+
+The value should be valid JSON:
+
+```bash
+risuko config set max-concurrent-downloads '"5"'
+risuko config set dir '"/home/user/downloads"'
+```
+
+### config list
+
+```bash
+risuko config list [--json]
+```
+
+---
+
+## rss
+
+Manage RSS feed subscriptions.
+
+### rss add
+
+```bash
+risuko rss add <url> [--rpc-port PORT]
+```
+
+### rss list
+
+```bash
+risuko rss list [--rpc-port PORT] [--json]
+```
+
+### rss refresh
+
+Refresh all RSS feeds and trigger new downloads.
+
+```bash
+risuko rss refresh [--rpc-port PORT]
+```
+
+### rss remove
+
+```bash
+risuko rss remove <id> [--rpc-port PORT]
+```
+
+---
+
+## serve
+
+Start the engine in headless mode (RPC server only, no GUI).
+
+```bash
+risuko serve [--rpc-port PORT]
+```
+
+The engine runs until interrupted (`Ctrl+C`) or a `shutdown` command is received.
+
+---
+
+## shutdown
+
+Request the engine to shut down via RPC.
+
+```bash
+risuko shutdown [--rpc-port PORT]
+```

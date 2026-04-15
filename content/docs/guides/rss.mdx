@@ -1,0 +1,69 @@
+---
+title: RSS Feeds
+description: Automatically download new content from RSS feeds.
+---
+
+Risuko can subscribe to RSS/Atom feeds and automatically download new items as they appear.
+
+> [!WARNING]
+> RSS feed management via CLI requires the standalone `risuko-cli` binary. The RSS RPC methods are not yet implemented in the engine's RPC server. RSS is not available through the Node.js API at this time.
+
+## Adding a Feed
+
+### CLI
+
+```bash
+risuko rss add "https://example.com/feed.xml"
+```
+
+### Node.js
+
+RSS management via the Node.js API is done through the RPC interface when the engine is running with RPC enabled.
+
+## Managing Feeds
+
+### List All Feeds
+
+```bash
+risuko rss list
+```
+
+JSON output for scripting:
+
+```bash
+risuko rss list --json
+```
+
+### Refresh Feeds
+
+Force an immediate refresh of all feeds:
+
+```bash
+risuko rss refresh
+```
+
+The engine also polls feeds periodically on a configurable interval.
+
+### Remove a Feed
+
+```bash
+# Get the feed ID from `rss list`
+risuko rss remove feed_abc123
+```
+
+## How It Works
+
+1. When a feed is added, the engine fetches it immediately
+2. New items are detected by comparing with previously seen entries
+3. Downloadable items (direct links, magnet links, torrent URLs) are queued automatically
+4. Feed state is persisted via the `StorageBackend` trait
+5. Periodic polling checks for new items at configurable intervals
+
+## Storage
+
+RSS feed data is stored using the `StorageBackend` trait:
+
+- **Desktop app**: Uses `tauri_plugin_store`
+- **CLI/Node.js**: Uses `FileStorage` (JSON files in the config directory)
+
+Feed state survives engine restarts. Previously downloaded items are not re-downloaded.

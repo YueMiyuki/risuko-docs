@@ -1,0 +1,121 @@
+---
+title: Configuration
+description: Risuko configuration reference — all available options.
+icon: Settings
+---
+
+Risuko stores configuration in two JSON files in the config directory:
+
+- **`system.json`** — System-level defaults (created on first run)
+- **`user.json`** — User overrides
+
+User settings take precedence over system defaults.
+
+## Config Directory Locations
+
+| Environment | Path |
+|-------------|------|
+| macOS | `~/Library/Application Support/dev.risuko.app` |
+| Linux | `~/.config/dev.risuko.app` |
+| Windows | `%APPDATA%\dev.risuko.app` |
+| Desktop App | Managed by Tauri (platform-specific app data) |
+| Node.js API | Configurable via `EngineConfig.configDir` |
+
+## Reading Configuration
+
+### CLI
+
+```bash
+# List all settings
+risuko config list
+
+# Get a specific value
+risuko config get dir
+
+# JSON output
+risuko config list --json
+```
+
+### Node.js
+
+```js
+import { getGlobalOption } from "risuko-js";
+
+const options = await getGlobalOption();
+console.log(options.dir);
+console.log(options["max-concurrent-downloads"]);
+```
+
+## Writing Configuration
+
+### CLI
+
+```bash
+risuko config set dir '"/home/user/downloads"'
+risuko config set max-concurrent-downloads '"5"'
+```
+
+<Callout type="warn">
+Values must be valid JSON. Strings need double quotes inside quotes: `'"value"'`
+</Callout>
+
+### Node.js
+
+```js
+import { changeGlobalOption } from "risuko-js";
+
+await changeGlobalOption({
+  dir: "/home/user/downloads",
+  "max-concurrent-downloads": "5",
+});
+```
+
+## Option Reference
+
+### General
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `dir` | OS default | Default download directory |
+| `max-concurrent-downloads` | `5` | Maximum parallel download tasks |
+| `continue` | `true` | Resume interrupted downloads |
+
+### Connection
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `split` | `16` | Connections per download |
+
+### Speed Limiting
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, 0 = unlimited) |
+| `max-overall-upload-limit` | `0` | Global upload speed limit (bytes/s) |
+| `max-download-limit` | `0` | Per-task download speed limit |
+
+### HTTP
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `user-agent` | Chrome UA string | Default user agent string |
+| `referer` | — | Default HTTP referer |
+| `header` | — | Default HTTP headers (array) |
+| `all-proxy` | — | Proxy server URL |
+
+### BitTorrent
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `seed-ratio` | `0` | Stop seeding at this ratio (0 = no ratio limit) |
+| `seed-time` | `0` | Seed for this many minutes after completing (0 = no seeding) |
+| `bt-tracker` | — | Additional tracker URLs (comma-separated) |
+| `listen-port` | `21301` | BitTorrent listen port |
+| `dht-listen-port` | `26701` | DHT listen port |
+
+### RPC
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `rpc-listen-port` | `16800` | RPC server port |
+| `rpc-secret` | — | RPC authentication token |

@@ -1,0 +1,267 @@
+---
+title: Task Operations
+description: Add, control, and query downloads with the Node.js API.
+---
+
+## Adding Downloads
+
+All `add*` functions return a GID (Global ID) string that identifies the download task.
+
+`addUri`, `addTorrent`, and `addEd2k` have corresponding JSON-RPC methods. `addMagnet`, `addM3u8`, and `addFtp` are available only through the Node.js bindings — they call the engine manager directly (not via RPC).
+
+### addUri
+
+Download from one or more HTTP/HTTPS URLs. Multiple URLs are treated as mirrors for the same file.
+
+```ts
+function addUri(
+  uris: string[],
+  options?: Record<string, unknown>
+): Promise<string>;
+```
+
+```js
+const gid = await addUri(
+  ["https://mirror1.example.com/file.zip", "https://mirror2.example.com/file.zip"],
+  { split: "16", dir: "/downloads", out: "file.zip" }
+);
+```
+
+### addTorrent
+
+Download from a `.torrent` file. Pass the raw file contents as a `Buffer`.
+
+```ts
+function addTorrent(
+  data: Buffer,
+  options?: Record<string, unknown>
+): Promise<string>;
+```
+
+```js
+import { readFile } from "node:fs/promises";
+
+const torrentData = await readFile("./ubuntu.torrent");
+const gid = await addTorrent(torrentData, { dir: "/downloads" });
+```
+
+### addMagnet
+
+Download from a magnet link.
+
+```ts
+function addMagnet(
+  uri: string,
+  options?: Record<string, unknown>
+): Promise<string>;
+```
+
+```js
+const gid = await addMagnet("magnet:?xt=urn:btih:abc123...", {
+  dir: "/downloads",
+  "seed-ratio": "1.0",
+});
+```
+
+### addEd2k
+
+Download using the ED2K protocol.
+
+```ts
+function addEd2k(
+  uri: string,
+  options?: Record<string, unknown>
+): Promise<string>;
+```
+
+### addM3u8
+
+Download an M3U8/HLS stream.
+
+```ts
+function addM3u8(
+  uri: string,
+  options?: Record<string, unknown>
+): Promise<string>;
+```
+
+### addFtp
+
+Download from an FTP/SFTP server.
+
+```ts
+function addFtp(
+  uri: string,
+  options?: Record<string, unknown>
+): Promise<string>;
+```
+
+## Task Options
+
+Options are passed as a flat object with string values. Common options:
+
+| Key | Description | Example |
+|-----|-------------|---------|
+| `dir` | Download directory | `"/downloads"` |
+| `out` | Output filename | `"file.zip"` |
+| `split` | Number of connections | `"16"` |
+| `header` | HTTP headers (array) | `["Cookie: foo=bar"]` |
+| `user-agent` | User agent string | `"MyApp/1.0"` |
+| `all-proxy` | Proxy URL | `"http://proxy:8080"` |
+| `referer` | HTTP referer | `"https://example.com"` |
+| `seed-ratio` | BT seed ratio | `"1.0"` |
+| `seed-time` | BT seed time (minutes) | `"60"` |
+| `max-download-limit` | Speed limit (bytes/s) | `"1048576"` |
+
+## Controlling Downloads
+
+### pause
+
+Pause an active download.
+
+```ts
+function pause(gid: string): Promise<void>;
+```
+
+### unpause
+
+Resume a paused download.
+
+```ts
+function unpause(gid: string): Promise<void>;
+```
+
+### remove
+
+Remove a download. Active downloads are stopped first.
+
+```ts
+function remove(gid: string): Promise<void>;
+```
+
+### pauseAll / unpauseAll
+
+Pause or resume all downloads at once.
+
+```ts
+function pauseAll(): Promise<void>;
+function unpauseAll(): Promise<void>;
+```
+
+### Example
+
+```js
+import { addUri, pause, unpause, remove } from "risuko-js";
+
+const gid = await addUri(["https://example.com/file.zip"]);
+
+await pause(gid);     // Pause
+await unpause(gid);   // Resume
+await remove(gid);    // Remove
+```
+
+## Queries
+
+### tellStatus
+
+Get the status of a specific download. Optionally filter which fields to return.
+
+```ts
+function tellStatus(
+  gid: string,
+  keys?: string[]
+): Promise<Record<string, unknown>>;
+```
+
+```js
+const status = await tellStatus(gid);
+// { gid, status, totalLength, completedLength, downloadSpeed, ... }
+
+// Request specific fields only
+const partial = await tellStatus(gid, ["status", "completedLength"]);
+```
+
+### Status Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `gid` | `string` | Global ID |
+| `status` | `string` | `"active"`, `"waiting"`, `"paused"`, `"complete"`, `"removed"`, `"error"` |
+| `totalLength` | `string` | Total file size in bytes |
+| `completedLength` | `string` | Downloaded bytes |
+| `downloadSpeed` | `string` | Current download speed (bytes/s) |
+| `uploadSpeed` | `string` | Current upload speed (bytes/s) |
+| `files` | `object[]` | Array of file information |
+| `errorCode` | `string` | Error code (if status is `"error"`) |
+| `errorMessage` | `string` | Error description |
+
+### tellActive
+
+Get all active downloads.
+
+```ts
+function tellActive(
+  keys?: string[]
+): Promise<Record<string, unknown>[]>;
+```
+
+### tellWaiting
+
+Get waiting downloads with pagination.
+
+```ts
+function tellWaiting(
+  offset: number,
+  num: number,
+  keys?: string[]
+): Promise<Record<string, unknown>[]>;
+```
+
+### tellStopped
+
+Get stopped downloads (complete, error, removed) with pagination.
+
+```ts
+function tellStopped(
+  offset: number,
+  num: number,
+  keys?: string[]
+): Promise<Record<string, unknown>[]>;
+```
+
+### getGlobalStat
+
+Get global transfer statistics.
+
+```ts
+function getGlobalStat(): Promise<Record<string, unknown>>;
+```
+
+```js
+const stat = await getGlobalStat();
+// { downloadSpeed, uploadSpeed, numActive, numWaiting, numStopped }
+```
+
+### getFiles
+
+Get the file list for a download.
+
+```ts
+function getFiles(gid: string): Promise<Record<string, unknown>[]>;
+```
+
+### getPeers
+
+Get connected peers for a BitTorrent download.
+
+```ts
+function getPeers(gid: string): Promise<Record<string, unknown>[]>;
+```
+
+### getUris
+
+Get the URI list for a download.
+
+```ts
+function getUris(gid: string): Promise<Record<string, unknown>[]>;
+```

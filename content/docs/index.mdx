@@ -1,13 +1,60 @@
 ---
-title: Hello World
-description: Your first document
+title: Introduction
+description: Risuko is a Rust-powered multi-protocol download engine with a desktop app, CLI, and Node.js API.
 ---
 
-Welcome to the docs! You can start writing documents in `/content/docs`.
+Risuko (Ri-su-ko) is a high-performance download engine written in Rust. It supports HTTP/HTTPS, BitTorrent, ED2K, M3U8/HLS, FTP/SFTP, and RSS feeds. 
 
-## What is Next?
+The name means squirrel in Japanese, an energetic little creature that rapidly gathers and caches away every treasure it finds.
+
+You can use Risuko in three ways:
+
+- **Desktop App** — A cross-platform GUI built with Tauri and Vue.js
+- **CLI** — A standalone command-line tool with full feature parity
+- **Node.js API** — Native bindings via napi-rs for embedding in your applications
+
+## Supported Protocols
+
+| Protocol | Description |
+|----------|-------------|
+| HTTP/HTTPS | Multi-threaded range-based downloads with connection pooling |
+| BitTorrent | Magnet links, `.torrent` files, DHT, PEX, seeding control |
+| ED2K | eDonkey2000 network protocol |
+| M3U8/HLS | HTTP Live Streaming segment downloads |
+| FTP/SFTP | File Transfer Protocol with TLS support |
+| RSS | Automatic feed subscription and download |
+
+## Quick Example
+
+### CLI
+
+```bash
+# Download a file with 16 threads
+risuko download https://example.com/large-file.zip -t 16
+
+# Download a torrent
+risuko download magnet:?xt=urn:btih:abc123...
+```
+
+### Node.js
+
+```js
+import { startEngine, addUri, onEvent } from "risuko-js";
+
+await startEngine();
+
+onEvent((event, gid) => {
+  console.log(`[${event}] ${gid}`);
+});
+
+const gid = await addUri(["https://example.com/file.zip"]);
+```
+
+## Next Steps
 
 <Cards>
-  <Card title="Learn more about Next.js" href="https://nextjs.org/docs" />
-  <Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
+  <Card title="Installation" href="/docs/getting-started/installation" />
+  <Card title="Quick Start" href="/docs/getting-started/quick-start" />
+  <Card title="CLI Reference" href="/docs/cli" />
+  <Card title="Node.js API" href="/docs/node-api" />
 </Cards>

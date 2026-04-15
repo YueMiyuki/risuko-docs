@@ -1,0 +1,53 @@
+---
+title: CLI
+description: Risuko command-line interface reference.
+icon: Terminal
+---
+
+The Risuko CLI (`risuko`) is a standalone binary that provides full access to the download engine from your terminal. It communicates with a running engine instance via JSON-RPC, or starts a temporary headless engine when needed.
+
+## Installation
+
+```package-install
+npm install -g risuko-cli
+```
+
+Or download standalone binaries from [GitHub Releases](https://github.com/YueMiyuki/risuko/releases).
+
+## Usage
+
+```bash
+risuko <command> [options]
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| [`download`](/docs/cli/commands#download) | Download a file from a URL, magnet link, or torrent file |
+| [`status`](/docs/cli/commands#status) | Show status of downloads |
+| [`pause`](/docs/cli/commands#pause) | Pause a download |
+| [`resume`](/docs/cli/commands#resume) | Resume a paused download |
+| [`remove`](/docs/cli/commands#remove) | Remove a download |
+| [`pause-all`](/docs/cli/commands#pause-all) | Pause all active downloads |
+| [`resume-all`](/docs/cli/commands#resume-all) | Resume all paused downloads |
+| [`global-stat`](/docs/cli/commands#global-stat) | Show global download/upload stats |
+| [`files`](/docs/cli/commands#files) | Show files belonging to a download |
+| [`peers`](/docs/cli/commands#peers) | Show peers for a torrent download |
+| [`purge`](/docs/cli/commands#purge) | Purge completed/error/removed results |
+| [`config`](/docs/cli/commands#config) | Get, set, or list configuration values |
+| [`rss`](/docs/cli/commands#rss) | Manage RSS feed subscriptions |
+| [`serve`](/docs/cli/commands#serve) | Start headless engine (RPC server only) |
+| [`shutdown`](/docs/cli/commands#shutdown) | Request engine shutdown via RPC |
+
+## Global Behavior
+
+- The CLI connects to the engine's JSON-RPC server (default port `16800`)
+- If no engine is running, the `download` command starts a temporary headless instance
+- Use `--rpc-port` on most commands to connect to a non-default port
+- Use `--json` for machine-readable output
+
+<Cards>
+  <Card title="Command Reference" href="/docs/cli/commands" />
+  <Card title="Examples" href="/docs/cli/examples" />
+</Cards>

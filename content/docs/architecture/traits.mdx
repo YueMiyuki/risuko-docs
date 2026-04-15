@@ -1,0 +1,164 @@
+---
+title: Trait System
+description: How Risuko decouples the engine from runtime environments using Rust traits.
+---
+
+The engine uses three traits to abstract away environment-specific behavior. Each consumer (Tauri, CLI, NAPI) provides its own implementations.
+
+## ConfigDirProvider
+
+Controls where configuration and data files are stored.
+
+```rust
+pub trait ConfigDirProvider: Send + Sync {
+    fn config_dir(&self) -> PathBuf;
+}
+```
+
+### Implementations
+
+| Implementation | Used By | Behavior |
+|---------------|---------|----------|
+| `DefaultConfigDir` | CLI, NAPI | `dirs::config_dir().join("dev.risuko.app")` |
+| `TauriConfigDir` | Desktop App | `AppHandle::path().app_config_dir()` |
+
+### DefaultConfigDir
+
+```rust
+pub struct DefaultConfigDir;
+
+impl ConfigDirProvider for DefaultConfigDir {
+    fn config_dir(&self) -> PathBuf {
+        dirs::config_dir()
+            .map(|d| d.join("dev.risuko.app"))
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+}
+```
+
+Resolves to:
+- **macOS**: `~/Library/Application Support/dev.risuko.app`
+- **Linux**: `~/.config/dev.risuko.app`
+- **Windows**: `C:\Users\<user>\AppData\Roaming\dev.risuko.app`
+
+## EventSink
+
+Receives engine events and forwards them to the host environment.
+
+```rust
+pub trait EventSink: Send + Sync {
+    fn emit(&self, event: &str, payload: Value);
+}
+```
+
+### Implementations
+
+| Implementation | Used By | Behavior |
+|---------------|---------|----------|
+| `NoopEventSink` | CLI | Discards events silently |
+| `LogEventSink` | CLI (verbose) | Logs events via `log::info!` |
+| `TauriEventSink` | Desktop App | Calls `AppHandle::emit()` to webview |
+| NAPI callback | Node.js | Invokes JS callback via `ThreadsafeFunction` |
+
+### NoopEventSink
+
+```rust
+pub struct NoopEventSink;
+
+impl EventSink for NoopEventSink {
+    fn emit(&self, _event: &str, _payload: Value) {}
+}
+```
+
+### LogEventSink
+
+```rust
+pub struct LogEventSink;
+
+impl EventSink for LogEventSink {
+    fn emit(&self, event: &str, payload: Value) {
+        log::info!("Engine event: {} {}", event, payload);
+    }
+}
+```
+
+## StorageBackend
+
+Persistent key-value storage for RSS data and other state.
+
+```rust
+pub trait StorageBackend: Send + Sync {
+    fn load(&self, key: &str) -> Result<Option<Value>, String>;
+    fn save(&self, key: &str, value: &Value) -> Result<(), String>;
+}
+```
+
+### Implementations
+
+| Implementation | Used By | Behavior |
+|---------------|---------|----------|
+| `FileStorage` | CLI, NAPI | JSON files in config directory |
+| `TauriStorage` | Desktop App | Wraps `tauri_plugin_store` |
+
+### FileStorage
+
+```rust
+pub struct FileStorage {
+    dir: PathBuf,
+}
+
+impl StorageBackend for FileStorage {
+    fn load(&self, key: &str) -> Result<Option<Value>, String> {
+        let path = self.dir.join(format!("{key}.json"));
+        if !path.exists() { return Ok(None); }
+        let data = std::fs::read_to_string(&path)?;
+        let value: Value = serde_json::from_str(&data)?;
+        Ok(Some(value))
+    }
+
+    fn save(&self, key: &str, value: &Value) -> Result<(), String> {
+        std::fs::create_dir_all(&self.dir)?;
+        let path = self.dir.join(format!("{key}.json"));
+        let data = serde_json::to_string_pretty(value)?;
+        std::fs::write(&path, data)?;
+        Ok(())
+    }
+}
+```
+
+## How the Engine Uses Traits
+
+The `EngineManager` and `RssManager` accept trait objects:
+
+```rust
+// Engine initialization (simplified)
+let config_dir = config_provider.config_dir();
+let system_config = load_config(&config_dir.join("system.json"));
+let user_config = load_config(&config_dir.join("user.json"));
+let options = EngineOptions::from_config(&system_config, &user_config);
+
+let manager = TaskManager::new(options, event_sink);
+let rss = RssManager::new(storage_backend, event_sink);
+```
+
+## Custom Implementations
+
+You can implement these traits to integrate Risuko into other environments:
+
+```rust
+use risuko_engine::{ConfigDirProvider, EventSink, StorageBackend};
+
+struct MyConfigDir;
+impl ConfigDirProvider for MyConfigDir {
+    fn config_dir(&self) -> PathBuf {
+        PathBuf::from("/my/app/config")
+    }
+}
+
+struct MyEventSink { /* your state */ }
+impl EventSink for MyEventSink {
+    fn emit(&self, event: &str, payload: Value) {
+        // Send to your event system
+    }
+}
+```

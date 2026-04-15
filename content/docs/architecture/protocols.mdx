@@ -1,0 +1,116 @@
+---
+title: Protocol Handlers
+description: How Risuko handles different download protocols.
+---
+
+Risuko's engine includes specialized handlers for each supported protocol. Each handler is a separate module within `risuko-engine`.
+
+## HTTP/HTTPS
+
+**Module**: `engine/http.rs`
+
+The HTTP handler supports multi-threaded range-based downloads:
+
+- Sends a `GET` request with `Range: bytes=0-0` to probe file size and range support
+- Splits the download into N chunks (configurable via `split` option)
+- Downloads chunks in parallel using HTTP `Range` headers
+- Falls back to single-threaded download if the server doesn't support ranges
+- Handles redirects, cookies, and custom headers
+- Supports proxy connections via the `all-proxy` option
+
+### Key Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `split` | `16` | Number of parallel connections |
+| `user-agent` | Chrome UA string | Custom user agent |
+| `header` | — | Custom HTTP headers |
+| `all-proxy` | — | Proxy URL |
+| `referer` | — | HTTP referer |
+| `max-download-limit` | `0` | Speed limit (bytes/s) |
+
+## BitTorrent
+
+**Module**: `engine/torrent.rs`
+
+Built on [librqbit](https://github.com/ikatson/librqbit) v8:
+
+- Magnet link resolution via DHT
+- `.torrent` file parsing
+- Peer Exchange (PEX) and DHT for peer discovery
+- Configurable seeding (ratio and time limits)
+- Upload speed limiting
+
+### Key Options
+
+| Option | Description |
+|--------|-------------|
+| `seed-ratio` | Stop seeding after this upload/download ratio |
+| `seed-time` | Stop seeding after this many minutes |
+| `max-upload-limit` | Upload speed limit (bytes/s) |
+| `bt-tracker` | Additional tracker URLs |
+
+### Seeding Behavior
+
+After a torrent download completes, seeding behavior depends on `seed-time`:
+
+1. `onBtDownloadComplete` fires when the download finishes
+2. If `seed-time > 0`, the task stays active and seeding continues
+3. Seeding stops when `seed-time` elapses or `seed-ratio` is reached (whichever comes first)
+4. `onDownloadComplete` fires when seeding is done (or immediately if `seed-time` is `0`)
+
+## ED2K
+
+**Module**: `engine/ed2k/`
+
+Supports the eDonkey2000 protocol for downloading files using `ed2k://` links.
+
+## M3U8/HLS
+
+**Module**: `engine/m3u8/`
+
+Downloads HTTP Live Streaming content:
+
+- Parses M3U8 playlist files
+- Downloads all segments in parallel
+- Concatenates segments into the final file
+- Supports both live and VOD playlists
+
+## FTP/SFTP
+
+**Module**: `engine/ftp/`
+
+File Transfer Protocol handler:
+
+- FTP with optional TLS encryption
+- SFTP (SSH File Transfer Protocol)
+- Passive mode support
+- Directory listing and file download
+
+## RSS
+
+**Module**: `engine/rss/`
+
+Automatic feed subscription and download:
+
+- Add RSS/Atom feed URLs
+- Periodic polling for new items (configurable interval)
+- Automatic download of new items matching configured rules
+- Persistent feed state via `StorageBackend`
+
+The RSS manager uses `tokio::spawn` for async polling and requires a tokio runtime context.
+
+## Protocol Routing
+
+The engine does **not** auto-detect protocols from URLs. Each protocol has a dedicated RPC method or API function:
+
+| Protocol | RPC Method | Node.js Function | CLI |
+|----------|-----------|-----------------|-----|
+| HTTP/HTTPS | `risuko.addUri` | `addUri` | `risuko download <url>` |
+| BitTorrent (.torrent) | `risuko.addTorrent` | `addTorrent` | `risuko download <file.torrent>` (auto-detected) |
+| BitTorrent (magnet) | — | `addMagnet` | Passed to `addUri` |
+| ED2K | `risuko.addEd2k` | `addEd2k` | — |
+| M3U8/HLS | — | `addM3u8` | — |
+| FTP/SFTP | — | `addFtp` | — |
+
+The CLI's `download` command only distinguishes `.torrent` files (by checking if the path ends with `.torrent` and exists on disk). All other inputs are passed to `addUri`. The Node.js API provides protocol-specific functions (`addTorrent`, `addMagnet`, `addEd2k`, `addM3u8`, `addFtp`) that call the engine directly.

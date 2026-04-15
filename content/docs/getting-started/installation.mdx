@@ -1,0 +1,98 @@
+---
+title: Installation
+description: Install Risuko CLI or Node.js bindings on your platform.
+---
+
+Risuko distributes platform-specific binaries via npm. No Rust toolchain or native compilation is needed at install time.
+
+## CLI
+
+Install the `risuko-cli` package globally:
+
+```package-install
+npm install -g risuko-cli
+```
+
+This installs the `risuko` binary. Verify it works:
+
+```bash
+risuko --version
+```
+
+### Supported Platforms
+
+| Platform | Architecture | Package |
+|----------|-------------|---------|
+| macOS | Apple Silicon (arm64) | `@risuko/cli-darwin-arm64` |
+| macOS | Intel (x64) | `@risuko/cli-darwin-x64` |
+| Linux | x64 | `@risuko/cli-linux-x64-gnu` |
+| Linux | arm64 | `@risuko/cli-linux-arm64-gnu` |
+| Windows | x64 | `@risuko/cli-win32-x64-msvc` |
+| Windows | arm64 | `@risuko/cli-win32-arm64-msvc` |
+
+The correct platform package is automatically selected via `optionalDependencies`.
+
+### Standalone Binaries
+
+Pre-built binaries are also available on the [GitHub Releases](https://github.com/YueMiyuki/risuko/releases) page. Download the archive for your platform and add it to your `PATH`.
+
+## Node.js API
+
+Install the `risuko-js` package:
+
+```package-install
+npm install risuko-js
+```
+
+This provides native Node.js bindings with full TypeScript definitions.
+
+### Supported Platforms
+
+| Platform | Architecture | Package |
+|----------|-------------|---------|
+| macOS | Apple Silicon (arm64) | `@risuko/js-darwin-arm64` |
+| macOS | Intel (x64) | `@risuko/js-darwin-x64` |
+| Linux | x64 | `@risuko/js-linux-x64-gnu` |
+| Linux | arm64 | `@risuko/js-linux-arm64-gnu` |
+| Windows | x64 | `@risuko/js-win32-x64-msvc` |
+| Windows | arm64 | `@risuko/js-win32-arm64-msvc` |
+
+### Requirements
+
+- Node.js 18 or later
+- One of the supported platforms listed above
+
+## Desktop App
+
+Download the latest release from [GitHub Releases](https://github.com/YueMiyuki/risuko/releases):
+
+- **macOS**: `.dmg` (Universal or per-architecture)
+- **Linux**: `.deb`, `.rpm`, or `.AppImage`
+- **Windows**: `.msi` or `.exe` installer
+
+## Building from Source
+
+If you need to build Risuko yourself:
+
+```bash
+# Clone the repository
+git clone https://github.com/YueMiyuki/risuko.git
+cd risuko
+
+# Install frontend dependencies
+pnpm install
+
+# Build the CLI only
+cd src-tauri
+cargo build --release -p risuko-cli
+
+# Build the full desktop app
+pnpm tauri build
+```
+
+### Build Requirements
+
+- Rust 1.75+
+- Node.js 18+
+- pnpm 9+
+- Platform-specific dependencies (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))

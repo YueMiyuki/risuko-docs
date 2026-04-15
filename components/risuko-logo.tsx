@@ -1,0 +1,69 @@
+import { type ComponentProps, useId } from "react";
+
+export function RisukoLogo(props: ComponentProps<"svg">) {
+  const id = useId();
+  const gradId = `risuko-grad-${id}`;
+  const grad = `url(#${gradId})`;
+
+  return (
+    <svg viewBox="0 0 32 32" fill="none" {...props}>
+      <defs>
+        <linearGradient
+          id={gradId}
+          x1="4"
+          y1="4"
+          x2="28"
+          y2="28"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#818cf8" />
+          <stop offset=".5" stopColor="#a78bfa" />
+          <stop offset="1" stopColor="#c084fc" />
+        </linearGradient>
+      </defs>
+      <g transform="translate(0, 4)">
+        <path
+          d="M22 8c3-2 6-1 7 2s0 6-2 8c-1.5 1.5-3 2-5 2"
+          stroke={grad}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M24 12c1.5 0 3 1 3 2.5S26 17 24.5 17"
+          stroke={grad}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          opacity=".6"
+        />
+        <circle cx="12" cy="14" r="8" stroke={grad} strokeWidth="2.5" />
+        <path
+          d="M6 8C5 6 6 4 8 4s3 2 2 4"
+          stroke={grad}
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <path
+          d="M14 6c0-2 1-4 3-4s3 2 2 4"
+          stroke={grad}
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <circle cx="9" cy="13" r="1.5" fill={grad} />
+        <circle cx="15" cy="13" r="1.5" fill={grad} />
+        <circle cx="12" cy="16" r="1" fill={grad} />
+        <path
+          d="M6 16c-1 .5-2 .5-2 .5"
+          stroke={grad}
+          strokeLinecap="round"
+          opacity=".5"
+        />
+        <path
+          d="M18 16c1 .5 2 .5 2 .5"
+          stroke={grad}
+          strokeLinecap="round"
+          opacity=".5"
+        />
+      </g>
+    </svg>
+  );
+}

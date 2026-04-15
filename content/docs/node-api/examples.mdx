@@ -1,0 +1,222 @@
+---
+title: Node.js Examples
+description: Complete examples demonstrating common risuko-js patterns.
+---
+
+## Download Manager Script
+
+A complete download manager that monitors progress and handles events:
+
+```js
+import {
+  startEngine,
+  addUri,
+  tellStatus,
+  tellActive,
+  getGlobalStat,
+  onEvent,
+  stopEngine,
+} from "risuko-js";
+
+async function main() {
+  await startEngine({ rpcPort: 16800 });
+  console.log("Engine started");
+
+  // Track downloads
+  const downloads = new Map();
+
+  onEvent((event, gid) => {
+    switch (event) {
+      case "risuko.onDownloadStart":
+        downloads.set(gid, { status: "active" });
+        break;
+      case "risuko.onDownloadComplete":
+        downloads.set(gid, { status: "complete" });
+        console.log(`\nComplete: ${gid}`);
+        break;
+      case "risuko.onDownloadError":
+        downloads.set(gid, { status: "error" });
+        console.error(`\nError: ${gid}`);
+        break;
+    }
+  });
+
+  // Add downloads
+  const urls = [
+    "https://example.com/file1.zip",
+    "https://example.com/file2.zip",
+  ];
+
+  for (const url of urls) {
+    const gid = await addUri([url], { split: "16" });
+    console.log(`Added: ${gid} -> ${url}`);
+  }
+
+  // Monitor until all complete
+  while (true) {
+    const stat = await getGlobalStat();
+    const active = Number(stat.numActive);
+    const waiting = Number(stat.numWaiting);
+
+    if (active === 0 && waiting === 0) break;
+
+    const speed = (Number(stat.downloadSpeed) / 1024 / 1024).toFixed(1);
+    process.stdout.write(`\rActive: ${active} | Waiting: ${waiting} | Speed: ${speed} MB/s   `);
+
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  console.log("\nAll downloads complete");
+  await stopEngine();
+}
+
+main().catch(console.error);
+```
+
+## Electron Integration
+
+Embed Risuko in an Electron app:
+
+```js
+// main.js (Electron main process)
+import { app, ipcMain } from "electron";
+import { startEngine, addUri, tellStatus, onEvent, stopEngine } from "risuko-js";
+
+app.whenReady().then(async () => {
+  await startEngine({
+    configDir: app.getPath("userData") + "/risuko",
+    rpcPort: 16800,
+  });
+
+  // Forward events to renderer
+  onEvent((event, gid) => {
+    mainWindow.webContents.send("risuko-event", { event, gid });
+  });
+});
+
+// Handle IPC from renderer
+ipcMain.handle("risuko:download", async (_, url, options) => {
+  return await addUri([url], options);
+});
+
+ipcMain.handle("risuko:status", async (_, gid) => {
+  return await tellStatus(gid);
+});
+
+app.on("before-quit", async () => {
+  await stopEngine();
+});
+```
+
+## Express Download Server
+
+Expose a download API over HTTP:
+
+```js
+import express from "express";
+import {
+  startEngine,
+  addUri,
+  tellStatus,
+  tellActive,
+  pause,
+  unpause,
+  remove,
+  stopEngine,
+} from "risuko-js";
+
+const app = express();
+app.use(express.json());
+
+await startEngine({ enableRpc: false });
+
+app.post("/api/downloads", async (req, res) => {
+  const { url, options } = req.body;
+  const gid = await addUri([url], options);
+  res.json({ gid });
+});
+
+app.get("/api/downloads/:gid", async (req, res) => {
+  const status = await tellStatus(req.params.gid);
+  res.json(status);
+});
+
+app.get("/api/downloads", async (req, res) => {
+  const active = await tellActive();
+  res.json(active);
+});
+
+app.post("/api/downloads/:gid/pause", async (req, res) => {
+  await pause(req.params.gid);
+  res.json({ ok: true });
+});
+
+app.post("/api/downloads/:gid/resume", async (req, res) => {
+  await unpause(req.params.gid);
+  res.json({ ok: true });
+});
+
+app.delete("/api/downloads/:gid", async (req, res) => {
+  await remove(req.params.gid);
+  res.json({ ok: true });
+});
+
+const server = app.listen(3000, () => {
+  console.log("Download server on http://localhost:3000");
+});
+
+process.on("SIGINT", async () => {
+  server.close();
+  await stopEngine();
+  process.exit(0);
+});
+```
+
+## Batch Downloader with Concurrency Control
+
+```js
+import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+
+async function batchDownload(urls, { concurrency = 3, dir = "/downloads" } = {}) {
+  await startEngine();
+
+  // Limit concurrency via global option
+  const { changeGlobalOption } = await import("risuko-js");
+  await changeGlobalOption({ "max-concurrent-downloads": String(concurrency) });
+
+  const results = new Map();
+  let completed = 0;
+
+  return new Promise((resolve) => {
+    onEvent((event, gid) => {
+      if (event === "risuko.onDownloadComplete") {
+        results.set(gid, "complete");
+        completed++;
+      } else if (event === "risuko.onDownloadError") {
+        results.set(gid, "error");
+        completed++;
+      }
+
+      if (completed === urls.length) {
+        resolve(results);
+      }
+    });
+
+    // Queue all downloads
+    for (const url of urls) {
+      addUri([url], { dir });
+    }
+  });
+}
+
+// Usage
+const results = await batchDownload([
+  "https://example.com/file1.zip",
+  "https://example.com/file2.zip",
+  "https://example.com/file3.zip",
+  "https://example.com/file4.zip",
+], { concurrency: 2, dir: "/tmp/downloads" });
+
+console.log("Results:", Object.fromEntries(results));
+await stopEngine();
+```

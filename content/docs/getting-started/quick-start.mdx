@@ -1,0 +1,164 @@
+---
+title: Quick Start
+description: Get up and running with Risuko in minutes.
+---
+
+This guide walks through common tasks with both the CLI and Node.js API.
+
+## CLI Quick Start
+
+### Start the Engine
+
+Risuko CLI communicates with the engine via JSON-RPC. Start a headless engine instance:
+
+```bash
+risuko serve
+```
+
+This starts the engine listening on port `16800` (default). You can specify a different port:
+
+```bash
+risuko serve --rpc-port 6800
+```
+
+<Callout type="info">
+If no engine is running when you issue a `download` command, Risuko automatically starts a temporary headless instance.
+</Callout>
+
+### Download a File
+
+```bash
+# HTTP download with 16 threads
+risuko download https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso -t 16
+
+# Specify output directory and filename
+risuko download https://example.com/file.zip -d ~/Downloads -o my-file.zip
+
+# With custom headers
+risuko download https://example.com/file.zip -H "Authorization: Bearer token123"
+```
+
+### Download a Torrent
+
+```bash
+# From a magnet link
+risuko download "magnet:?xt=urn:btih:abc123..."
+
+# From a .torrent file
+risuko download ./ubuntu.torrent
+
+# With seeding limits
+risuko download "magnet:?xt=urn:btih:abc123..." --seed-ratio 1.0 --seed-time 60
+```
+
+### Monitor Downloads
+
+```bash
+# List all downloads
+risuko status
+
+# Check a specific download
+risuko status --gid a1b2c3d4
+
+# JSON output for scripting
+risuko status --json
+```
+
+### Control Downloads
+
+```bash
+# Pause a download
+risuko pause a1b2c3d4
+
+# Resume it
+risuko resume a1b2c3d4
+
+# Pause/resume all
+risuko pause-all
+risuko resume-all
+
+# Remove a download
+risuko remove a1b2c3d4
+```
+
+## Node.js Quick Start
+
+### Basic Download
+
+```js
+import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+
+// Start the engine
+await startEngine();
+
+// Subscribe to events
+onEvent((event, gid) => {
+  if (event === "risuko.onDownloadComplete") {
+    console.log(`Download complete: ${gid}`);
+  }
+});
+
+// Add a download
+const gid = await addUri(
+  ["https://example.com/large-file.zip"],
+  { split: "16", dir: "/tmp/downloads" }
+);
+
+console.log(`Started download: ${gid}`);
+```
+
+### Monitor Progress
+
+```js
+import { startEngine, addUri, tellStatus } from "risuko-js";
+
+await startEngine();
+
+const gid = await addUri(["https://example.com/file.zip"]);
+
+// Poll for progress
+const interval = setInterval(async () => {
+  const status = await tellStatus(gid);
+  const total = Number(status.totalLength);
+  const completed = Number(status.completedLength);
+  const speed = Number(status.downloadSpeed);
+
+  if (total > 0) {
+    const pct = ((completed / total) * 100).toFixed(1);
+    const speedMB = (speed / 1024 / 1024).toFixed(1);
+    console.log(`${pct}% | ${speedMB} MB/s`);
+  }
+
+  if (status.status === "complete" || status.status === "error") {
+    clearInterval(interval);
+  }
+}, 1000);
+```
+
+### Torrent Download
+
+```js
+import { readFile } from "node:fs/promises";
+import { startEngine, addTorrent, addMagnet } from "risuko-js";
+
+await startEngine();
+
+// From a .torrent file
+const torrentData = await readFile("./ubuntu.torrent");
+const gid1 = await addTorrent(torrentData, { dir: "/downloads" });
+
+// From a magnet link
+const gid2 = await addMagnet("magnet:?xt=urn:btih:abc123...", {
+  dir: "/downloads",
+  "seed-ratio": "1.0",
+});
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="CLI Reference" href="/docs/cli" />
+  <Card title="Node.js API Reference" href="/docs/node-api" />
+  <Card title="Configuration" href="/docs/configuration" />
+  <Card title="Architecture" href="/docs/architecture" />
+</Cards>

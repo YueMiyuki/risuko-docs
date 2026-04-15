@@ -1,16 +1,21 @@
-import Link from 'next/link';
+import { Navigation } from "@/components/navigation";
+import { HeroSection } from "@/components/hero-section";
+import { MetricsBanner } from "@/components/metrics-banner";
+import { FeaturesGrid } from "@/components/features-grid";
+import { CodeShowcase } from "@/components/code-showcase";
+
+import { Footer } from "@/components/footer";
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col justify-center text-center flex-1">
-      <h1 className="text-2xl font-bold mb-4">Hello World</h1>
-      <p>
-        You can open{' '}
-        <Link href="/docs" className="font-medium underline">
-          /docs
-        </Link>{' '}
-        and see the documentation.
-      </p>
+    <div className="min-h-screen bg-background">
+      <main>
+        <HeroSection />
+        <MetricsBanner />
+        <FeaturesGrid />
+        <CodeShowcase />
+      </main>
+      <Footer />
     </div>
   );
 }

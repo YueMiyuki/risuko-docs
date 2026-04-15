@@ -1,0 +1,119 @@
+---
+title: Headless Server
+description: Run Risuko as a headless download server without a GUI.
+---
+
+Risuko can run as a headless download server, accepting commands over JSON-RPC. This is useful for servers, NAS devices, Docker containers, or any environment without a display.
+
+## Starting the Server
+
+### Via CLI
+
+```bash
+risuko serve --rpc-port 16800
+```
+
+### Via Node.js
+
+```js
+import { startEngine } from "risuko-js";
+
+await startEngine({
+  rpcPort: 16800,
+  enableRpc: true,
+});
+
+// Engine is now running and accepting RPC commands
+// Keep the process alive
+process.on("SIGINT", async () => {
+  const { stopEngine } = await import("risuko-js");
+  await stopEngine();
+  process.exit(0);
+});
+```
+
+## Controlling the Server
+
+Once the server is running, use any of these methods to control it:
+
+### From the CLI
+
+```bash
+# Add a download
+risuko download https://example.com/file.zip --rpc-port 16800
+
+# Check status
+risuko status --rpc-port 16800
+
+# Shut down
+risuko shutdown --rpc-port 16800
+```
+
+### From curl
+
+```bash
+curl -X POST http://localhost:16800/jsonrpc \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":"1","method":"risuko.addUri","params":[["https://example.com/file.zip"]]}'
+```
+
+### From Node.js (RPC client)
+
+You can also write a custom JSON-RPC client to talk to a remote server. The [RPC Protocol](/docs/architecture/rpc) page documents all available methods.
+
+## Running as a systemd Service
+
+```ini
+[Unit]
+Description=Risuko Download Engine
+After=network.target
+
+[Service]
+Type=simple
+User=risuko
+ExecStart=/usr/local/bin/risuko serve --rpc-port 16800
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable risuko
+sudo systemctl start risuko
+```
+
+## Docker
+
+```dockerfile
+FROM debian:bookworm-slim
+
+COPY risuko /usr/local/bin/risuko
+RUN chmod +x /usr/local/bin/risuko && mkdir -p /downloads
+
+EXPOSE 16800
+VOLUME ["/downloads", "/config"]
+
+CMD ["risuko", "serve", "--rpc-port", "16800"]
+```
+
+```bash
+docker run -d \
+  -p 16800:16800 \
+  -v /path/to/downloads:/downloads \
+  -v /path/to/config:/config \
+  risuko
+```
+
+## Session Persistence
+
+The engine automatically saves session state periodically. When restarted:
+
+- Completed downloads are remembered
+- Active downloads resume from where they left off
+- Configuration persists in the config directory
+
+The default config directory depends on the deployment method:
+- **CLI**: `~/.config/dev.risuko.app` (Linux), `~/Library/Application Support/dev.risuko.app` (macOS)
+- **Node.js API**: configurable via `EngineConfig.configDir`
