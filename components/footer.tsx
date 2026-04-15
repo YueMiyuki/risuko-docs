@@ -116,14 +116,6 @@ export function Footer() {
       <div className="border-t border-border/30">
         <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} Risuko. MIT License.</p>
-          <div className="flex gap-4">
-            <Link href="#" className="hover:text-foreground transition-colors">
-              Privacy
-            </Link>
-            <Link href="#" className="hover:text-foreground transition-colors">
-              Terms
-            </Link>
-          </div>
         </div>
       </div>
     </footer>
