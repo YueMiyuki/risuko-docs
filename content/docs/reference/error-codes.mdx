@@ -1,0 +1,132 @@
+---
+title: Error Codes
+description: Complete reference of Risuko download engine error codes.
+---
+
+Risuko uses numeric error codes to identify download failures. Each error code belongs to a category based on its numeric range.
+
+When a download fails, the error code and a human-readable message are stored on the task and displayed in the UI.
+
+## Error Code Ranges
+
+| Range | Category |
+|-------|----------|
+| 1xx | General errors |
+| 2xx | Network errors |
+| 3xx | HTTP errors |
+| 4xx | File system errors |
+| 5xx | Protocol-specific errors |
+| 6xx | Resource errors |
+| 9xx | Internal engine errors |
+
+---
+
+## General Errors (1xx)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 100 | Unknown | An unclassified error occurred. Check the error message for details. |
+| 101 | Cancelled | The download was cancelled by the user or system. |
+| 102 | Checksum Mismatch | The downloaded file's checksum does not match the expected value. |
+
+## Network Errors (2xx)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 200 | DNS Resolution Failed | Could not resolve the hostname. Verify the URL and your DNS settings. |
+| 201 | Connection Refused | The remote server refused the connection. The server may be down or the port may be blocked. |
+| 202 | Connection Reset | The connection was reset by the remote host during transfer. |
+| 203 | Connection Timeout | The connection timed out before a response was received. |
+| 204 | Network Unreachable | No network route to the host. Check your internet connection. |
+| 205 | TLS Handshake Failed | SSL/TLS negotiation failed. The server's certificate may be invalid or the TLS version unsupported. |
+| 206 | Proxy Connection Failed | Could not connect through the configured proxy server. |
+
+## HTTP Errors (3xx)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 300 | Unauthorized | HTTP 401 — The server requires authentication credentials. |
+| 301 | Forbidden | HTTP 403 — Access to the resource is denied. |
+| 302 | Not Found | HTTP 404 — The requested file does not exist on the server. |
+| 303 | Range Not Satisfiable | HTTP 416 — The server cannot fulfill the byte range request. The file may have changed. |
+| 304 | Too Many Requests | HTTP 429 — Rate limited by the server. Try again later. |
+| 305 | Server Error | HTTP 5xx — An error occurred on the server side. |
+| 306 | Service Unavailable | HTTP 503 — The server is temporarily unavailable. |
+| 307 | Redirect Loop | Too many HTTP redirects were followed. |
+| 308 | Response Error | An unspecified HTTP response error. |
+
+## File System Errors (4xx)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 400 | Disk Full | No space left on the target disk or storage quota exceeded. |
+| 401 | Permission Denied | Insufficient permissions to write to the download directory. |
+| 402 | File Not Found | A required local file (e.g., a partial download) was not found. |
+| 403 | File Already Exists | The output file already exists and overwrite is not enabled. |
+| 404 | Invalid Path | The output file path is invalid or contains unsupported characters. |
+| 405 | I/O Error | A general file system I/O error occurred. |
+
+## Protocol-Specific Errors (5xx)
+
+### BitTorrent
+
+| Code | Name | Description |
+|------|------|-------------|
+| 500 | Metadata Failed | Failed to resolve torrent metadata from peers or trackers. |
+| 501 | No Seeds | No seeders are available for this torrent. |
+| 502 | Invalid Torrent File | The `.torrent` file is corrupt or not a valid BitTorrent metainfo file. |
+
+### ED2K
+
+| Code | Name | Description |
+|------|------|-------------|
+| 510 | Server Unreachable | Could not connect to the ED2K server. |
+| 511 | File Not Found | The file was not found on the ED2K network. |
+
+### M3U8 / HLS
+
+| Code | Name | Description |
+|------|------|-------------|
+| 520 | Parse Failed | Failed to parse the M3U8 playlist. The URL may not point to a valid HLS stream. |
+| 521 | Segment Failed | One or more video segments failed to download. |
+| 522 | Decrypt Failed | Failed to decrypt an encrypted HLS segment (AES-128). |
+
+### FTP / SFTP
+
+| Code | Name | Description |
+|------|------|-------------|
+| 530 | FTP Login Failed | Authentication failed. Check your username and password. |
+| 531 | FTP File Not Found | The file does not exist on the FTP server. |
+| 532 | FTP Transfer Failed | The file transfer was interrupted or failed. |
+| 533 | SFTP Auth Failed | SFTP authentication failed. Check your credentials or private key. |
+| 534 | SFTP Host Key Failed | The SFTP server's host key could not be verified. |
+
+## Resource Errors (6xx)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 600 | Out of Memory | The system ran out of memory during the download. |
+| 601 | Too Many Connections | The maximum number of concurrent connections was exceeded. |
+
+## Internal Errors (9xx)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 900 | Engine Not Running | The download engine is not running. Try restarting the application. |
+| 901 | Invalid Parameter | An invalid parameter was passed to the engine. |
+| 902 | Session Corrupt | The session data file is corrupt and could not be loaded. |
+
+---
+
+## Troubleshooting
+
+### Common Fixes
+
+- **2xx Network errors**: Check your internet connection, firewall, and DNS settings.
+- **3xx HTTP errors**: Verify the download URL is correct and accessible in a browser.
+- **4xx File system errors**: Ensure the download directory exists and has write permissions.
+- **5xx Protocol errors**: Check protocol-specific settings (trackers, credentials, etc.).
+
+### Viewing Logs
+
+For detailed error information, check the application log files. The log directory is shown under **Preferences > Advanced > App log path**. Log files are rotated daily and named `risuko.log.YYYY-MM-DD`.
