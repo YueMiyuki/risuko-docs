@@ -86,7 +86,7 @@ risuko remove a1b2c3d4
 ### Basic Download
 
 ```js
-import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
 
 // Start the engine
 await startEngine();
@@ -110,7 +110,7 @@ console.log(`Started download: ${gid}`);
 ### Monitor Progress
 
 ```js
-import { startEngine, addUri, tellStatus } from "risuko-js";
+import { startEngine, addUri, tellStatus } from "@risuko/risuko-js";
 
 await startEngine();
 
@@ -139,7 +139,7 @@ const interval = setInterval(async () => {
 
 ```js
 import { readFile } from "node:fs/promises";
-import { startEngine, addTorrent, addMagnet } from "risuko-js";
+import { startEngine, addTorrent, addMagnet } from "@risuko/risuko-js";
 
 await startEngine();
 

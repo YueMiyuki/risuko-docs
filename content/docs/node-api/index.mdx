@@ -9,7 +9,7 @@ icon: Code
 ## Installation
 
 ```package-install
-npm install risuko-js
+npm install @risuko/risuko-js
 ```
 
 ## Overview
@@ -34,7 +34,7 @@ import {
   tellStatus,
   onEvent,
   stopEngine,
-} from "risuko-js";
+} from "@risuko/risuko-js";
 
 await startEngine({ rpcPort: 16800 });
 
@@ -58,7 +58,7 @@ await stopEngine();
 Full TypeScript declarations are included. All types are exported from the main module:
 
 ```ts
-import type { EngineConfig, EngineEventName } from "risuko-js";
+import type { EngineConfig, EngineEventName } from "@risuko/risuko-js";
 ```
 
 <Cards>

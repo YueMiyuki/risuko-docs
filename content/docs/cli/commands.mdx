@@ -34,6 +34,7 @@ If no running engine is detected, a temporary headless instance is started autom
 | `--seed-ratio` | — | — | BitTorrent seed ratio (e.g. `1.0`) |
 | `--seed-time` | — | — | BitTorrent seed time in minutes |
 | `--rpc-port` | — | `16800` | RPC port to connect to |
+| `--rpc-secret` | — | — | RPC authentication token |
 | `--json` | — | — | Output as JSON |
 
 ### Examples
@@ -71,6 +72,7 @@ risuko status [options]
 |--------|---------|-------------|
 | `--gid` | — | Show a specific task by GID |
 | `--rpc-port` | `16800` | RPC port to connect to |
+| `--rpc-secret` | — | RPC authentication token |
 | `--json` | — | Output as JSON |
 
 ### Output
@@ -110,11 +112,13 @@ risuko resume <gid> [--rpc-port PORT]
 
 ## remove
 
-Remove a download from the engine. Active downloads are stopped first.
+Remove one or more downloads from the engine. Active downloads are stopped first.
 
 ```bash
-risuko remove <gid> [--rpc-port PORT]
+risuko remove <gid>... [--rpc-port PORT] [--rpc-secret SECRET]
 ```
+
+Multiple GIDs can be passed in a single invocation.
 
 ---
 
@@ -223,6 +227,10 @@ risuko config list [--json]
 
 Manage RSS feed subscriptions.
 
+<Callout type="warn">
+The RSS CLI commands call RPC methods (`risuko.addRssFeed`, `risuko.getRssFeeds`, `risuko.refreshAllRssFeeds`, `risuko.removeRssFeed`) that are not yet implemented in the engine's RPC server. These commands will currently return a "method not found" error. RSS management is available directly in the desktop app.
+</Callout>
+
 ### rss add
 
 ```bash
@@ -256,14 +264,15 @@ risuko rss remove <id> [--rpc-port PORT]
 Start the engine in headless mode (RPC server only, no GUI).
 
 ```bash
-risuko serve [--rpc-port PORT]
+risuko serve [--rpc-port PORT] [--verbose]
 ```
 
 The engine runs until interrupted (`Ctrl+C`) or a `shutdown` command is received.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--verbose` | - | - | Verbose log for cli |
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--rpc-port` | — | `16800` | RPC listen port |
+| `--verbose` | `-v` | `false` | Enable verbose logging |
 
 ---
 

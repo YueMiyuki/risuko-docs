@@ -56,7 +56,7 @@ Fired when a BitTorrent download finishes downloading (but may still be seeding)
 ### Basic event logging
 
 ```js
-import { startEngine, addUri, onEvent } from "risuko-js";
+import { startEngine, addUri, onEvent } from "@risuko/risuko-js";
 
 await startEngine();
 
@@ -71,7 +71,7 @@ await addUri(["https://example.com/file.zip"]);
 ### Waiting for completion
 
 ```js
-import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
 
 await startEngine();
 
@@ -101,7 +101,7 @@ await stopEngine();
 ### Error handling
 
 ```js
-import { startEngine, addUri, onEvent, tellStatus } from "risuko-js";
+import { startEngine, addUri, onEvent, tellStatus } from "@risuko/risuko-js";
 
 await startEngine();
 

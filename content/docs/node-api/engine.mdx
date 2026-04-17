@@ -27,7 +27,7 @@ interface EngineConfig {
 ### Examples
 
 ```js
-import { startEngine } from "risuko-js";
+import { startEngine } from "@risuko/risuko-js";
 
 // Use defaults
 await startEngine();
@@ -63,7 +63,7 @@ function stopEngine(): Promise<void>;
 ```
 
 ```js
-import { stopEngine } from "risuko-js";
+import { stopEngine } from "@risuko/risuko-js";
 
 await stopEngine();
 ```
@@ -97,7 +97,7 @@ function removeDownloadResult(gid: string): Promise<void>;
 ### Example
 
 ```js
-import { saveSession, purgeDownloadResult } from "risuko-js";
+import { saveSession, purgeDownloadResult } from "@risuko/risuko-js";
 
 // Force save
 await saveSession();

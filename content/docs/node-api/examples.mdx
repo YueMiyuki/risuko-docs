@@ -16,7 +16,7 @@ import {
   getGlobalStat,
   onEvent,
   stopEngine,
-} from "risuko-js";
+} from "@risuko/risuko-js";
 
 async function main() {
   await startEngine({ rpcPort: 16800 });
@@ -80,7 +80,7 @@ Embed Risuko in an Electron app:
 ```js
 // main.js (Electron main process)
 import { app, ipcMain } from "electron";
-import { startEngine, addUri, tellStatus, onEvent, stopEngine } from "risuko-js";
+import { startEngine, addUri, tellStatus, onEvent, stopEngine } from "@risuko/risuko-js";
 
 app.whenReady().then(async () => {
   await startEngine({
@@ -123,7 +123,7 @@ import {
   unpause,
   remove,
   stopEngine,
-} from "risuko-js";
+} from "@risuko/risuko-js";
 
 const app = express();
 app.use(express.json());
@@ -175,13 +175,13 @@ process.on("SIGINT", async () => {
 ## Batch Downloader with Concurrency Control
 
 ```js
-import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
 
 async function batchDownload(urls, { concurrency = 3, dir = "/downloads" } = {}) {
   await startEngine();
 
   // Limit concurrency via global option
-  const { changeGlobalOption } = await import("risuko-js");
+  const { changeGlobalOption } = await import("@risuko/risuko-js");
   await changeGlobalOption({ "max-concurrent-downloads": String(concurrency) });
 
   const results = new Map();

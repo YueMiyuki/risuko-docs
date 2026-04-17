@@ -33,11 +33,11 @@ The HTTP handler supports multi-threaded range-based downloads:
 
 **Module**: `engine/torrent.rs`
 
-Built on [librqbit](https://github.com/ikatson/librqbit) v8:
+Built on [librqbit](https://github.com/ikatson/librqbit) v9:
 
-- Magnet link resolution via DHT
+- Magnet link resolution via DHT (with session fast-path for already-managed torrents)
 - `.torrent` file parsing
-- Peer Exchange (PEX) and DHT for peer discovery
+- Peer Exchange (PEX) and DHT (v4 + v6) for peer discovery
 - Configurable seeding (ratio and time limits)
 - Upload speed limiting
 

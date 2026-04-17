@@ -39,7 +39,7 @@ risuko config list --json
 ### Node.js
 
 ```js
-import { getGlobalOption } from "risuko-js";
+import { getGlobalOption } from "@risuko/risuko-js";
 
 const options = await getGlobalOption();
 console.log(options.dir);
@@ -62,7 +62,7 @@ Values must be valid JSON. Strings need double quotes inside quotes: `'"value"'`
 ### Node.js
 
 ```js
-import { changeGlobalOption } from "risuko-js";
+import { changeGlobalOption } from "@risuko/risuko-js";
 
 await changeGlobalOption({
   dir: "/home/user/downloads",
@@ -112,10 +112,15 @@ await changeGlobalOption({
 | `bt-tracker` | — | Additional tracker URLs (comma-separated) |
 | `listen-port` | `21301` | BitTorrent listen port |
 | `dht-listen-port` | `26701` | DHT listen port |
+| `enable-dht` | `true` | Enable IPv4 DHT for peer discovery |
+| `enable-dht6` | `true` | Enable IPv6 DHT for peer discovery |
+| `enable-peer-exchange` | `true` | Enable Peer Exchange (PEX) |
+| `bt-enable-lpd` | `true` | Enable Local Peer Discovery |
 
 ### RPC
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `rpc-listen-port` | `16800` | RPC server port |
+| `rpc-host` | `127.0.0.1` | RPC bind address (set to `0.0.0.0` for LAN access) |
 | `rpc-secret` | — | RPC authentication token |

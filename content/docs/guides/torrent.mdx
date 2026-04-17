@@ -16,7 +16,7 @@ risuko download "magnet:?xt=urn:btih:abc123def456..."
 ### Node.js
 
 ```js
-import { addMagnet } from "risuko-js";
+import { addMagnet } from "@risuko/risuko-js";
 
 const gid = await addMagnet("magnet:?xt=urn:btih:abc123def456...", {
   dir: "/downloads",
@@ -35,7 +35,7 @@ risuko download ./ubuntu-24.04.torrent -d ~/Downloads
 
 ```js
 import { readFile } from "node:fs/promises";
-import { addTorrent } from "risuko-js";
+import { addTorrent } from "@risuko/risuko-js";
 
 const data = await readFile("./ubuntu-24.04.torrent");
 const gid = await addTorrent(data, { dir: "/downloads" });

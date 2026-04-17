@@ -7,10 +7,10 @@ Risuko distributes platform-specific binaries via npm. No Rust toolchain or nati
 
 ## CLI
 
-Install the `risuko-cli` package globally:
+Install the `@risuko/cli` package globally:
 
 ```package-install
-npm install -g risuko-cli
+npm install -g @risuko/cli
 ```
 
 This installs the `risuko` binary. Verify it works:
@@ -38,10 +38,10 @@ Pre-built binaries are also available on the [GitHub Releases](https://github.co
 
 ## Node.js API
 
-Install the `risuko-js` package:
+Install the `@risuko/risuko-js` package:
 
 ```package-install
-npm install risuko-js
+npm install @risuko/risuko-js
 ```
 
 This provides native Node.js bindings with full TypeScript definitions.
@@ -92,7 +92,7 @@ pnpm tauri build
 
 ### Build Requirements
 
-- Rust 1.75+
+- Rust 1.75+ (stable)
 - Node.js 18+
-- pnpm 9+
+- pnpm 10+
 - Platform-specific dependencies (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))

@@ -16,7 +16,7 @@ risuko serve --rpc-port 16800
 ### Via Node.js
 
 ```js
-import { startEngine } from "risuko-js";
+import { startEngine } from "@risuko/risuko-js";
 
 await startEngine({
   rpcPort: 16800,
@@ -26,7 +26,7 @@ await startEngine({
 // Engine is now running and accepting RPC commands
 // Keep the process alive
 process.on("SIGINT", async () => {
-  const { stopEngine } = await import("risuko-js");
+  const { stopEngine } = await import("@risuko/risuko-js");
   await stopEngine();
   process.exit(0);
 });

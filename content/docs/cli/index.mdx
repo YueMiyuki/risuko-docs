@@ -9,7 +9,7 @@ The Risuko CLI (`risuko`) is a standalone binary that provides full access to th
 ## Installation
 
 ```package-install
-npm install -g risuko-cli
+npm install -g @risuko/cli
 ```
 
 Or download standalone binaries from [GitHub Releases](https://github.com/YueMiyuki/risuko/releases).
@@ -45,6 +45,7 @@ risuko <command> [options]
 - The CLI connects to the engine's JSON-RPC server (default port `16800`)
 - If no engine is running, the `download` command starts a temporary headless instance
 - Use `--rpc-port` on most commands to connect to a non-default port
+- Use `--rpc-secret` to pass an authentication token when the engine has `rpc-secret` configured
 - Use `--json` for machine-readable output
 
 <Cards>

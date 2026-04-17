@@ -43,7 +43,7 @@ risuko status --json | jq '.[] | {gid, status, name: .files[0].path}'
 ### Simple Batch
 
 ```js
-import { startEngine, addUri, onEvent, stopEngine } from "risuko-js";
+import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
 
 const urls = [
   "https://example.com/file1.zip",
@@ -65,7 +65,7 @@ console.log(`Started ${gids.length} downloads`);
 ### With Concurrency Control
 
 ```js
-import { startEngine, changeGlobalOption, addUri, onEvent } from "risuko-js";
+import { startEngine, changeGlobalOption, addUri, onEvent } from "@risuko/risuko-js";
 
 await startEngine();
 
@@ -92,7 +92,7 @@ for (const url of urls) {
 ### With Speed Limiting
 
 ```js
-import { startEngine, changeGlobalOption } from "risuko-js";
+import { startEngine, changeGlobalOption } from "@risuko/risuko-js";
 
 await startEngine();
 
