@@ -27,7 +27,7 @@ Risuko follows a layered architecture where the core download engine is fully de
     <div className="grid grid-cols-3 gap-3 text-center">
       <div className="rounded-md border bg-fd-background px-3 py-2">Config Module</div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Engine Manager</div>
-      <div className="rounded-md border bg-fd-background px-3 py-2">Protocol Handlers<br/><span className="text-fd-muted-foreground text-xs">HTTP, BT, ED2K, M3U8, FTP, RSS</span></div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Protocol Handlers<br/><span className="text-fd-muted-foreground text-xs">HTTP, BT (risuko-bt), ED2K, M3U8, FTP, RSS</span></div>
       <div className="rounded-md border bg-fd-background px-3 py-2">RPC Server</div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Events Broadcast</div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Traits<br/><span className="text-fd-muted-foreground text-xs">ConfigDir, Events, Storage</span></div>
@@ -37,18 +37,19 @@ Risuko follows a layered architecture where the core download engine is fully de
 
 ## Cargo Workspace
 
-The project is organized as a Cargo workspace with four crates:
+The project is organized as a Cargo workspace with five crates:
 
 | Crate | Type | Description |
 |-------|------|-------------|
 | `risuko-engine` | Library | Core engine with zero runtime dependencies |
+| `risuko-bt` | Library | In-tree BitTorrent v1 engine consumed by `risuko-engine` |
 | `risuko-cli` | Binary | Standalone CLI tool |
 | `risuko-napi` | cdylib | Native Node.js bindings |
 | `risuko` (root) | Binary | Tauri desktop application |
 
 ```toml
 [workspace]
-members = ["risuko-engine", "risuko-cli", "risuko-napi"]
+members = ["risuko-engine", "risuko-bt", "risuko-cli", "risuko-napi"]
 ```
 
 ## Key Design Decisions

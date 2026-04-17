@@ -33,13 +33,16 @@ The HTTP handler supports multi-threaded range-based downloads:
 
 **Module**: `engine/torrent.rs`
 
-Built on [librqbit](https://github.com/ikatson/librqbit) v9:
+Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/main/src-tauri/risuko-bt):
 
-- Magnet link resolution via DHT (with session fast-path for already-managed torrents)
-- `.torrent` file parsing
+- Magnet link resolution (session fast-path for already-managed torrents, then tracker + DHT)
+- `.torrent` file parsing via the bundled bencode decoder
 - Peer Exchange (PEX) and DHT (v4 + v6) for peer discovery
-- Configurable seeding (ratio and time limits)
-- Upload speed limiting
+- BEP-10 extension protocol with `ut_metadata` (BEP-9) and `ut_pex` (BEP-11)
+- Rarest-first piece selection with endgame mode and SHA-1 verification off the async runtime
+- HTTP/HTTPS (BEP-23 compact) and UDP (BEP-15) trackers
+- Configurable seeding (ratio, time, or keep-seeding), upload speed limiting
+- Tunable per-peer request pipeline and per-torrent peer cap
 
 ### Key Options
 
@@ -47,17 +50,21 @@ Built on [librqbit](https://github.com/ikatson/librqbit) v9:
 |--------|-------------|
 | `seed-ratio` | Stop seeding after this upload/download ratio |
 | `seed-time` | Stop seeding after this many minutes |
+| `keep-seeding` | Seed until manually stopped (overrides `seed-time` / `seed-ratio`) |
 | `max-upload-limit` | Upload speed limit (bytes/s) |
 | `bt-tracker` | Additional tracker URLs |
+| `bt-max-peers-per-torrent` | Max concurrent peer connections per torrent (default `100`) |
+| `bt-max-outstanding-per-peer` | Max pipelined chunk requests per peer (default `128`) |
 
 ### Seeding Behavior
 
-After a torrent download completes, seeding behavior depends on `seed-time`:
+After a torrent download completes, seeding behavior depends on the seed options:
 
 1. `onBtDownloadComplete` fires when the download finishes
-2. If `seed-time > 0`, the task stays active and seeding continues
-3. Seeding stops when `seed-time` elapses or `seed-ratio` is reached (whichever comes first)
-4. `onDownloadComplete` fires when seeding is done (or immediately if `seed-time` is `0`)
+2. If `keep-seeding` is true, or `seed-time > 0`, or `seed-ratio > 0`, the task stays active and seeding continues
+3. When `keep-seeding` is true, `seed-time` / `seed-ratio` limits are ignored; seeding runs until the task is stopped manually
+4. Otherwise seeding stops when `seed-time` elapses or `seed-ratio` is reached (whichever comes first)
+5. `onDownloadComplete` fires when seeding is done (or immediately if no seeding was requested)
 
 ## ED2K
 

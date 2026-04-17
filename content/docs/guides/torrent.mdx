@@ -3,7 +3,7 @@ title: BitTorrent Downloads
 description: Guide to downloading torrents with Risuko.
 ---
 
-Risuko includes a full BitTorrent client powered by [librqbit](https://github.com/ikatson/librqbit).
+Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/main/src-tauri/risuko-bt), an in-tree BitTorrent v1 engine.
 
 ## Magnet Links
 
@@ -43,7 +43,17 @@ const gid = await addTorrent(data, { dir: "/downloads" });
 
 ## Seeding Control
 
-By default, Risuko does **not** seed after a torrent completes (`seed-time` and `seed-ratio` both default to `0`). To enable seeding, set a `seed-time` greater than `0`:
+By default, Risuko does **not** seed after a torrent completes (`keep-seeding` is `false` and `seed-time` / `seed-ratio` default to `0`). To enable seeding, turn on `keep-seeding`, or set a finite `seed-time` / `seed-ratio`:
+
+### Keep Seeding
+
+Seed indefinitely until the task is stopped manually:
+
+```js
+await changeGlobalOption({ "keep-seeding": "true" });
+```
+
+When `keep-seeding` is enabled, the `seed-time` and `seed-ratio` limits are ignored.
 
 ### Seed Ratio
 
@@ -72,12 +82,12 @@ await addMagnet("magnet:?xt=...", { "seed-time": "60" });
 ```
 
 <Callout type="info">
-Seeding only occurs when `seed-time` is greater than `0`. The `seed-ratio` limit is checked alongside `seed-time` during seeding.
+Seeding starts whenever `keep-seeding` is true, or `seed-time > 0`, or `seed-ratio > 0`. If `keep-seeding` is off, seeding stops when `seed-time` elapses or `seed-ratio` is reached, whichever comes first.
 </Callout>
 
 ### Combined Limits
 
-When both are set, seeding stops when **either** limit is reached first.
+When both `seed-time` and `seed-ratio` are set (and `keep-seeding` is off), seeding stops when **either** limit is reached first.
 
 ## Events
 

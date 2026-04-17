@@ -107,9 +107,12 @@ await changeGlobalOption({
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `keep-seeding` | `false` | Seed until manually stopped (overrides `seed-time` / `seed-ratio`) |
 | `seed-ratio` | `0` | Stop seeding at this ratio (0 = no ratio limit) |
-| `seed-time` | `0` | Seed for this many minutes after completing (0 = no seeding) |
+| `seed-time` | `0` | Seed for this many minutes after completing (0 = no time limit) |
 | `bt-tracker` | — | Additional tracker URLs (comma-separated) |
+| `bt-max-peers-per-torrent` | `100` | Max concurrent peer connections per torrent (requires engine restart) |
+| `bt-max-outstanding-per-peer` | `128` | Max pipelined chunk requests per peer (requires engine restart) |
 | `listen-port` | `21301` | BitTorrent listen port |
 | `dht-listen-port` | `26701` | DHT listen port |
 | `enable-dht` | `true` | Enable IPv4 DHT for peer discovery |
