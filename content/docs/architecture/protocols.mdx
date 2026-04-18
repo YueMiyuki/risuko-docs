@@ -37,8 +37,11 @@ Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri
 
 - Magnet link resolution (session fast-path for already-managed torrents, then tracker + DHT)
 - `.torrent` file parsing via the bundled bencode decoder
-- Peer Exchange (PEX) and DHT (v4 + v6) for peer discovery
-- BEP-10 extension protocol with `ut_metadata` (BEP-9) and `ut_pex` (BEP-11)
+- BEP-5 DHT for peer discovery, dual-stack (IPv4 + IPv6 via BEP-32) when an IPv6 socket can be bound
+- BEP-14 Local Service Discovery (LSD) for peers on the same LAN
+- BEP-10 extension protocol with `ut_metadata` (BEP-9); the `ut_pex` extension id is advertised but BEP-11 peer ingest is not yet wired
+- BEP-8 Message Stream Encryption (MSE/PE) with selectable `plaintext` / `prefer` / `require` policy
+- UPnP IGD port forwarding for the listener (TCP + UDP)
 - Rarest-first piece selection with endgame mode and SHA-1 verification off the async runtime
 - HTTP/HTTPS (BEP-23 compact) and UDP (BEP-15) trackers
 - Configurable seeding (ratio, time, or keep-seeding), upload speed limiting
@@ -55,6 +58,11 @@ Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri
 | `bt-tracker` | Additional tracker URLs |
 | `bt-max-peers-per-torrent` | Max concurrent peer connections per torrent (default `100`) |
 | `bt-max-outstanding-per-peer` | Max pipelined chunk requests per peer (default `128`) |
+| `bt-enable-upnp` | UPnP IGD port forwarding (default `true`) |
+| `bt-upnp-lease` | UPnP mapping lease in seconds (default `300`) |
+| `bt-enable-lsd` | BEP-14 Local Service Discovery (default `true`) |
+| `bt-encryption-policy` | MSE/PE policy: `plaintext`, `prefer`, `require` (default `prefer`) |
+| `bt-listen-v6` | Also bind an IPv6 TCP listener (default `false`) |
 
 ### Seeding Behavior
 

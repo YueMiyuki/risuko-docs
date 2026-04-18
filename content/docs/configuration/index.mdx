@@ -111,14 +111,19 @@ await changeGlobalOption({
 | `seed-ratio` | `0` | Stop seeding at this ratio (0 = no ratio limit) |
 | `seed-time` | `0` | Seed for this many minutes after completing (0 = no time limit) |
 | `bt-tracker` | — | Additional tracker URLs (comma-separated) |
-| `bt-max-peers-per-torrent` | `100` | Max concurrent peer connections per torrent (requires engine restart) |
-| `bt-max-outstanding-per-peer` | `128` | Max pipelined chunk requests per peer (requires engine restart) |
-| `listen-port` | `21301` | BitTorrent listen port |
-| `dht-listen-port` | `26701` | DHT listen port |
-| `enable-dht` | `true` | Enable IPv4 DHT for peer discovery |
-| `enable-dht6` | `true` | Enable IPv6 DHT for peer discovery |
-| `enable-peer-exchange` | `true` | Enable Peer Exchange (PEX) |
-| `bt-enable-lpd` | `true` | Enable Local Peer Discovery |
+| `bt-max-peers-per-torrent` | `100` | Max concurrent peer connections per torrent (engine restart) |
+| `bt-max-outstanding-per-peer` | `128` | Max pipelined chunk requests per peer (engine restart) |
+| `bt-enable-upnp` | `true` | Map the listen port on the router via UPnP IGD (engine restart) |
+| `bt-upnp-lease` | `300` | UPnP mapping lease in seconds (engine restart) |
+| `bt-enable-lsd` | `true` | BEP-14 Local Service Discovery via multicast (engine restart) |
+| `bt-encryption-policy` | `prefer` | MSE/PE policy: `plaintext`, `prefer`, or `require` (engine restart) |
+| `bt-listen-v6` | `false` | Also bind an IPv6 TCP listener on the same port (engine restart) |
+
+The DHT (BEP-5) is always enabled and runs as a dual-stack client when an
+IPv6 socket can be bound. The BitTorrent listener uses an ephemeral port; the
+legacy aria2 keys `listen-port`, `dht-listen-port`, `enable-dht`,
+`enable-dht6`, `enable-peer-exchange`, and `bt-enable-lpd` are accepted for
+backwards compatibility but currently have no effect.
 
 ### RPC
 
