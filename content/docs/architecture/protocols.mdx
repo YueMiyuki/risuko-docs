@@ -12,9 +12,14 @@ Risuko's engine includes specialized handlers for each supported protocol. Each 
 The HTTP handler supports multi-threaded range-based downloads:
 
 - Sends a `GET` request with `Range: bytes=0-0` to probe file size and range support
-- Splits the download into N chunks (configurable via `split` option)
-- Downloads chunks in parallel using HTTP `Range` headers
-- Falls back to single-threaded download if the server doesn't support ranges
+- Divides the file into 1 MiB **pieces** when at least `min-split-size` bytes; spawns N **worker tasks** (configurable via `split`, like aria2's `-s`/`-x`) that pull pieces from a shared lock-free queue
+- Work-stealing is inherent: any idle worker claims the next free piece, so a slow connection never holds back the rest of the download
+- Resume granularity is per-piece (≤1 MiB lost on `SIGKILL`): each piece tracks an `AtomicU32` byte counter that the writer increments per flushed `Bytes`, and a sidecar JSON snapshot is persisted every 2 s
+- Downloads use HTTP `Range` headers; workers are pinned to HTTP/1.1 to keep each piece on its own TCP connection
+- Each piece streams `bytes::Bytes` directly into a dedicated writer task that issues positioned writes (`pwrite` on Unix, `seek_write` on Windows) against a shared file handle, so workers never contend on a seek lock
+- Calls `fsync` once on completion before renaming the `.part` file into place
+- Validates the `Content-Range` header on every 206 response and aborts on mismatch; sends `If-Match` when an `ETag` was recorded for resume
+- Falls back to a single-connection download when the file is below `min-split-size` or the server doesn't support ranges
 - Handles redirects, cookies, and custom headers
 - Supports proxy connections via the `all-proxy` option
 
@@ -22,12 +27,14 @@ The HTTP handler supports multi-threaded range-based downloads:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `split` | `16` | Number of parallel connections |
+| `split` | `16` | Number of parallel worker tasks (one TCP connection each) |
+| `min-split-size` | `1M` | Skip splitting for files smaller than this |
 | `user-agent` | Chrome UA string | Custom user agent |
 | `header` | — | Custom HTTP headers |
 | `all-proxy` | — | Proxy URL |
 | `referer` | — | HTTP referer |
-| `max-download-limit` | `0` | Speed limit (bytes/s) |
+| `max-download-limit` | `0` | Per-task speed limit (bytes/s, `0` = unlimited) |
+| `remote-time` | `false` | Set the local file mtime from the server's `Last-Modified` header |
 
 ## BitTorrent
 

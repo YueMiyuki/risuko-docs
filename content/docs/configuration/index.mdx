@@ -84,7 +84,8 @@ await changeGlobalOption({
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `split` | `16` | Connections per download |
+| `split` | `16` | Connections per download (HTTP/HTTPS); ignored when the file is smaller than `min-split-size` or the server doesn't support `Range` |
+| `min-split-size` | `1M` | Minimum segment size before the file is split (bytes; accepts `K`/`M`/`G` suffixes) |
 
 ### Speed Limiting
 
