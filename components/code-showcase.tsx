@@ -6,7 +6,11 @@ import { Copy, Check } from "lucide-react";
 const tabs = ["CLI", "Node.js API"] as const;
 
 const code = {
-  CLI: `# Basic download
+  CLI: `
+# Install
+$ pnpm i -g @risuko/cli
+
+# Basic download
 $ risuko download https://example.com/large-file.zip
 
 # Multi-threaded with 16 connections
