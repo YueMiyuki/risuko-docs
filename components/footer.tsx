@@ -60,7 +60,7 @@ export function Footer() {
         </div>
 
         <code className="inline-block px-3 py-1.5 text-xs font-mono text-muted-foreground bg-muted/30 border border-border/30 rounded-md">
-          pnpm install -g @risuko/risuko-app
+          pnpm install -g @risuko/app
         </code>
       </div>
 
