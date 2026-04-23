@@ -37,12 +37,16 @@ await changeOption(gid, { "max-download-limit": "1048576" });
 
 ### Changeable Options
 
-These options can be modified on a running task:
+`changeOption` merges the provided keys into the task's option map, so any key can be stored. Only a subset is consumed live by the engine:
 
-| Key | Description |
-|-----|-------------|
-| `max-download-limit` | Max download speed in bytes/sec (`"0"` for unlimited) |
-| `max-upload-limit` | Max upload speed in bytes/sec (BitTorrent) |
+| Key | Effect on a running task |
+|-----|--------------------------|
+| `max-download-limit` | Updates the per-task download speed limit on the next tick (bytes/sec, `"0"` for unlimited) |
+| `max-upload-limit` | Updates the per-torrent upload speed limit (BitTorrent) |
+| `seed-time` | Setting to `"0"` while a torrent is seeding (and `seed-ratio` is also `0` or absent) stops seeding immediately and emits `risuko.onDownloadComplete` |
+| `seed-ratio` | Same stop-on-zero behaviour as `seed-time`; otherwise re-evaluated by the seeding loop |
+
+Other options are stored on the task and used the next time a relevant action runs (for example, `dir`/`out` when the task is restarted).
 
 ## Global Options
 
@@ -80,13 +84,15 @@ await changeGlobalOption({ "max-overall-download-limit": "10485760" });
 
 ### Global Option Reference
 
+Defaults come from `system_defaults()` in `src-tauri/risuko-engine/src/config/defaults.rs` and are stored as JSON numbers/strings; `changeGlobalOption` accepts either form.
+
 | Key | Default | Description |
 |-----|---------|-------------|
-| `dir` | OS default | Default download directory |
-| `max-concurrent-downloads` | `"5"` | Maximum number of parallel downloads |
-| `max-overall-download-limit` | `"0"` | Global download speed limit (bytes/s, `"0"` = unlimited) |
-| `max-overall-upload-limit` | `"0"` | Global upload speed limit (bytes/s) |
-| `split` | `"16"` | Default number of connections for new downloads |
+| `dir` | OS Downloads dir | Default download directory |
+| `max-concurrent-downloads` | `5` | Maximum number of parallel downloads |
+| `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, `0` = unlimited; updates the `SpeedLimiter` immediately) |
+| `max-overall-upload-limit` | `0` | Global upload speed limit (bytes/s) |
+| `split` | `16` | Default number of HTTP connections for new downloads |
 | `user-agent` | Chrome UA string | Default user agent string |
-| `all-proxy` | — | Default proxy URL |
-| `rpc-listen-port` | `"16800"` | RPC server port |
+| `all-proxy` | `""` | Default proxy URL |
+| `rpc-listen-port` | `16800` | RPC server port (read at `startEngine` only) |

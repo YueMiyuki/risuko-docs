@@ -55,10 +55,11 @@ pub trait EventSink: Send + Sync {
 
 | Implementation | Used By | Behavior |
 |---------------|---------|----------|
-| `NoopEventSink` | CLI | Discards events silently |
-| `LogEventSink` | CLI (verbose) | Logs events via `log::info!` |
-| `TauriEventSink` | Desktop App | Calls `AppHandle::emit()` to webview |
-| NAPI callback | Node.js | Invokes JS callback via `ThreadsafeFunction` |
+| `NoopEventSink` | Engine `start_engine_headless`, RSS in desktop app | Discards events silently |
+| `LogEventSink` | Available, not wired by default consumers | Logs events via `log::info!` |
+| `TauriEventSink` | Desktop App (`src/bridge.rs`) | Calls `AppHandle::emit()` to webview |
+
+The Node.js bindings and the standalone CLI subscribe to `EventBroadcaster` directly instead of constructing an `EventSink`.
 
 ### NoopEventSink
 
@@ -128,7 +129,7 @@ impl StorageBackend for FileStorage {
 
 ## How the Engine Uses Traits
 
-The `EngineManager` and `RssManager` accept trait objects:
+Only `RssManager` is constructed from `dyn` trait objects today; `TaskManager` takes a concrete `EventBroadcaster` and a `&Path` for the config directory:
 
 ```rust
 // Engine initialization (simplified)
@@ -137,9 +138,12 @@ let system_config = load_config(&config_dir.join("system.json"));
 let user_config = load_config(&config_dir.join("user.json"));
 let options = EngineOptions::from_config(&system_config, &user_config);
 
-let manager = TaskManager::new(options, event_sink);
+let events = EventBroadcaster::default();
+let manager = TaskManager::new(&config_dir, options, events).await?;
 let rss = RssManager::new(storage_backend, event_sink);
 ```
+
+Consumers that need to translate broadcast events into a host environment (Tauri, NAPI) subscribe to `events.subscribe()` and forward each `EngineEvent` themselves; the trait surface only matters for `RssManager` and for `start_engine_headless` in `engine/mod.rs`.
 
 ## Custom Implementations
 
