@@ -21,7 +21,11 @@ The HTTP handler supports multi-threaded range-based downloads:
 - Validates the `Content-Range` header on every 206 response and aborts on mismatch; sends `If-Match` when an `ETag` was recorded for resume
 - Falls back to a single-connection download when the file is below `min-split-size` or the server doesn't support ranges
 - Handles redirects, cookies, and custom headers
-- Supports proxy connections via the `all-proxy` option
+- Supports proxy connections via the `all-proxy` option (`http://`, `socks5://`, `socks5h://`; `https://` proxies are not supported)
+- Stalled-transfer watchdog: aborts a worker when the EMA stays below `lowest-speed-limit` for `lowest-speed-limit-timeout` (auto-retry restarts it when enabled)
+- Multi-URI tasks pick a mirror via `uri-selector` (`feedback` / `inorder` / `adaptive`)
+- Optional `.netrc` lookup for HTTP Basic auth when the URL has no embedded credentials (disabled with `no-netrc`)
+- Cookies can be primed from a Netscape/Mozilla `cookies.txt` via `load-cookies`
 
 ### Key Options
 
@@ -29,9 +33,17 @@ The HTTP handler supports multi-threaded range-based downloads:
 |--------|---------|-------------|
 | `split` | `16` | Number of parallel worker tasks (one TCP connection each) |
 | `min-split-size` | `1M` | Skip splitting for files smaller than this |
+| `connect-timeout` | `60` | Connect timeout in seconds |
+| `lowest-speed-limit` | `0` | Stalled-transfer floor in bytes/s (`0` disables the watchdog) |
+| `lowest-speed-limit-timeout` | `30` | Seconds below the floor before the worker is aborted |
+| `uri-selector` | `feedback` | Mirror selection strategy: `feedback`, `inorder`, or `adaptive` |
+| `file-allocation` | `falloc` | Disk reservation strategy: `falloc`, `trunc`, or `none` |
 | `user-agent` | Chrome UA string | Custom user agent |
 | `header` | — | Custom HTTP headers |
-| `all-proxy` | — | Proxy URL |
+| `all-proxy` | — | Proxy URL (`http://`, `socks5://`, or `socks5h://`) |
+| `load-cookies` | — | Path to a Netscape/Mozilla `cookies.txt` |
+| `netrc-path` | `~/.netrc` | Override the `.netrc` file location |
+| `no-netrc` | `false` | Skip `.netrc` lookup |
 | `referer` | — | HTTP referer |
 | `max-download-limit` | `0` | Per-task speed limit (bytes/s, `0` = unlimited) |
 | `remote-time` | `false` | Set the local file mtime from the server's `Last-Modified` header |

@@ -102,7 +102,25 @@ await changeGlobalOption({
 | `user-agent` | Chrome UA string | Default user agent string |
 | `referer` | — | Default HTTP referer |
 | `header` | — | Default HTTP headers (array) |
-| `all-proxy` | — | Proxy server URL |
+| `all-proxy` | — | Proxy server URL. Accepts `http://`, `socks5://`, or `socks5h://` (use `socks5h` to resolve hostnames through the proxy). `https://` proxies are not supported |
+| `load-cookies` | — | Path to a Netscape/Mozilla format `cookies.txt` (also accepts curl/wget output) loaded into the per-task cookie jar |
+| `netrc-path` | `~/.netrc` (`%USERPROFILE%\_netrc` on Windows) | Override the `.netrc` file used to inject HTTP Basic auth when a URL has no embedded credentials |
+| `no-netrc` | `false` | Skip `.netrc` lookup entirely |
+
+### Reliability
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `connect-timeout` | `60` | Connect timeout in seconds for HTTP/HTTPS/FTP |
+| `lowest-speed-limit` | `0` | Stalled-transfer threshold in bytes/s. If the EMA stays below this for `lowest-speed-limit-timeout`, the worker is aborted (and restarted when auto-retry is enabled). `0` disables the watchdog |
+| `lowest-speed-limit-timeout` | `30` | How many seconds the transfer must stay below `lowest-speed-limit` before it is considered stalled |
+| `uri-selector` | `feedback` | Mirror selection strategy when a task has multiple URIs: `feedback` (drop slow/failing mirrors), `inorder` (try left-to-right), or `adaptive` (prefer fastest) |
+
+### Storage
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `file-allocation` | `falloc` | Disk reservation strategy. `falloc` reserves real blocks via `fallocate(2)` (Linux) or `fcntl(F_PREALLOCATE)` (macOS), falling back to `set_len`. `trunc` only sets the file length. `none` lets writes grow the file as needed. The aria2 alias `prealloc` is accepted as a synonym for `falloc` |
 
 ### BitTorrent
 
