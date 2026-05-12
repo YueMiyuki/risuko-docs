@@ -3,7 +3,9 @@ title: BitTorrent Downloads
 description: Guide to downloading torrents with Risuko.
 ---
 
-Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/main/src-tauri/risuko-bt), an in-tree BitTorrent v1 engine.
+Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri/risuko-bt), an in-tree BitTorrent engine that supports both BEP-3 (v1) and BEP-52 (v2) torrents, including hybrid torrents that carry both info-hashes.
+
+For v2 and hybrid torrents the task exposes an additional `infoHashV2` (SHA-256) field alongside `infoHash`, plus `metaVersion` (`v1`, `v2`, or `hybrid`).
 
 ## Magnet Links
 

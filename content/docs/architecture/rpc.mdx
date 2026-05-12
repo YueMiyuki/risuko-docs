@@ -42,6 +42,7 @@ The RPC server listens on `http://localhost:16800/jsonrpc` by default.
 | `risuko.addUri` | `[uris[], options?]` | GID string |
 | `risuko.addTorrent` | `[base64Data, uris[], options?]` | GID string |
 | `risuko.addEd2k` | `[uri, options?]` | GID string |
+| `risuko.addYouTube` | `[url, options?]` | GID string |
 | `risuko.pause` | `[gid]` | — |
 | `risuko.unpause` | `[gid]` | — |
 | `risuko.remove` | `[gid]` | — |
@@ -87,6 +88,34 @@ The RPC server listens on `http://localhost:16800/jsonrpc` by default.
 | `risuko.shutdown` | — | — |
 | `risuko.forceShutdown` | — | — |
 
+### Task Routing
+
+Pattern-based rules that override the download directory and assign a tag
+based on the inferred output filename. See the [Task Routing guide](/docs/guides/task-routing).
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `risuko.listRoutingRules` | — | Rule array |
+| `risuko.addRoutingRule` | `[rule]` | The rule, with `id` filled in if omitted |
+| `risuko.updateRoutingRule` | `[rule]` | `"OK"` |
+| `risuko.removeRoutingRule` | `[ruleId]` | `"OK"` |
+| `risuko.resolveRouting` | `[filename]` | `{ tag, dir }` decision preview against the current rules |
+
+A rule has the shape:
+
+```json
+{
+  "id": "rule-videos",
+  "label": "Videos",
+  "pattern": "*.{mp4,mkv,webm}",
+  "dir": "/downloads/videos",
+  "enabled": true
+}
+```
+
+`pattern` is a case-insensitive glob (`glob` crate syntax) matched against
+the inferred filename only — not the URL or directory.
+
 ## Example: curl
 
 ```bash
@@ -129,3 +158,40 @@ Standard JSON-RPC error codes apply. Application-specific errors use codes in th
 ## aria2 Compatibility
 
 The RPC server accepts both `risuko.*` and `aria2.*` method prefixes. For example, `aria2.addUri` is treated as `risuko.addUri`. This makes it compatible with existing aria2 RPC clients.
+
+## Authentication
+
+When `rpc-secret` is set, every call must prefix its `params` array with `"token:<secret>"`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "risuko.addUri",
+  "params": ["token:my-secret", ["https://example.com/file.zip"]]
+}
+```
+
+The token is stripped from `params` before dispatch. When `rpc-secret` is empty, the `token:` prefix is still accepted (and stripped) for compatibility with aria2 clients that always send one.
+
+## `system.multicall`
+
+Batch any number of calls into a single round-trip. Per aria2 convention, the **outer** params array is not authenticated; each nested call is authenticated independently and must carry its own `"token:<secret>"` prefix when `rpc-secret` is set.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "system.multicall",
+  "params": [[
+    { "methodName": "risuko.tellActive", "params": ["token:my-secret"] },
+    { "methodName": "risuko.getGlobalStat", "params": ["token:my-secret"] }
+  ]]
+}
+```
+
+Returns an array where each element is either `[result]` (success) or `{ "code", "message" }` (per-call error). The legacy `["token:...", [calls]]` shape is also accepted, but the outer token is **never** trusted as authentication.
+
+## WebSocket Subscribe
+
+The server upgrades `GET /jsonrpc` requests with a `Connection: Upgrade` / `Upgrade: websocket` header to a WebSocket. Once connected, the engine streams JSON-RPC notifications matching the aria2 event names — `aria2.onDownloadStart`, `aria2.onDownloadPause`, `aria2.onDownloadStop`, `aria2.onDownloadComplete`, `aria2.onDownloadError`, `aria2.onBtDownloadComplete` (each also published as `risuko.on…`) — for every task transition. Regular request/response calls also work over the same socket. Use `system.listNotifications` to enumerate the supported names.

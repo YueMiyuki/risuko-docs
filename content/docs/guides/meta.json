@@ -1,5 +1,14 @@
 {
   "title": "Guides",
   "icon": "BookOpen",
-  "pages": ["headless-server", "torrent", "batch-downloads", "rss"]
+  "pages": [
+    "headless-server",
+    "torrent",
+    "batch-downloads",
+    "rss",
+    "task-routing",
+    "completion-scripts",
+    "cloud-uploads",
+    "health-checks"
+  ]
 }

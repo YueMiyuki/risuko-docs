@@ -1,0 +1,103 @@
+---
+title: Completion Scripts
+description: Run a custom script after every download completes.
+---
+
+When a task finishes — successfully or with an error — Risuko can fire a
+configurable script. Use it to upload to a server, send a notification,
+trigger a transcoder, or update an external database.
+
+> [!INFO]
+> Completion scripts are a desktop-app feature wired through the
+> `run_completion_script` Tauri command. The CLI `serve` mode does not
+> currently invoke them — use the [Cloud Upload Sinks](/docs/guides/cloud-uploads)
+> subsystem for headless post-processing.
+
+## Configuration
+
+The relevant keys live in `user.json` (or **Preferences → Advanced** in the
+desktop app):
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `completion-script-enabled` | `false` | Master switch |
+| `completion-script-command` | — | Absolute path to the executable |
+| `completion-script-args` | — | Whitespace-tokenised argument template with placeholders |
+| `completion-script-timeout-ms` | `30000` | Hard kill timeout (clamped to `1000`–`300000`) |
+
+The script is **executed directly**, not through a shell. Each whitespace-
+separated token in the args template becomes one argv entry, so quoting,
+shell expansions, and pipes are not interpreted. If you need shell
+features, point `completion-script-command` at `/bin/sh` (or `cmd.exe`)
+and pass `-c "your pipeline"` as the args.
+
+## Placeholders
+
+Both the args template and the spawned environment expose:
+
+| Placeholder | Env var | Value |
+|-------------|---------|-------|
+| `{path}` | `RISUKO_PATH` | Final on-disk path of the completed file |
+| `{hash}` | `RISUKO_HASH` | Task GID |
+| `{status}` | `RISUKO_STATUS` | `complete`, `error`, or `cancelled` |
+
+Placeholders are substituted inside each argv token after splitting, so
+`--file={path}` produces a single argument like `--file=/downloads/foo.zip`.
+
+## Per-Task Overrides
+
+Individual tasks can override any of the four settings via the
+`completionScriptOverrides` field accepted by the desktop app's task
+options. Notably:
+
+- Setting `command` on a task implicitly enables the script for that task,
+  even when the global switch is off — unless the override also sets
+  `enabled: false` explicitly.
+- `enabled: false` always wins, useful for opting one noisy task out of
+  the global script.
+- `timeout_ms` overrides are clamped to the same `1000`–`300000` ms range.
+
+## Output Handling
+
+stdout and stderr are captured and written to the desktop app's log at
+`info` (success) or `warn` (non-zero exit / timeout) level. Each stream
+is truncated to **8 KiB** with a `...[truncated]` marker. Scripts that
+exceed `completion-script-timeout-ms` are killed and reported with
+`timed_out: true`.
+
+## Example: Notify via `terminal-notifier`
+
+```text
+Command: /usr/local/bin/terminal-notifier
+Args:    -title Risuko -subtitle {status} -message {path}
+```
+
+## Example: Move to a NAS via `rsync`
+
+```text
+Command: /bin/sh
+Args:    -c rsync\u00a0-a\u00a0{path}\u00a0/Volumes/nas/incoming/
+```
+
+(Use a single token containing a real shell command if your args template
+needs spaces; the recommended approach is to wrap the pipeline in a
+dedicated shell script and call it directly.)
+
+## Example: Conditional handling
+
+```bash
+#!/usr/bin/env bash
+# /usr/local/bin/risuko-complete.sh
+set -euo pipefail
+
+case "$RISUKO_STATUS" in
+  complete) /usr/local/bin/transcode.sh "$RISUKO_PATH" ;;
+  error)    logger -t risuko "task $RISUKO_HASH failed: $RISUKO_PATH" ;;
+  *)        ;;
+esac
+```
+
+```text
+Command: /usr/local/bin/risuko-complete.sh
+Args:    (leave empty — env vars carry the values)
+```

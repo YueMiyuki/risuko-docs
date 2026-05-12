@@ -54,17 +54,22 @@ The HTTP handler supports multi-threaded range-based downloads:
 
 Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri/risuko-bt):
 
-- Magnet link resolution (session fast-path for already-managed torrents, then tracker + DHT)
-- `.torrent` file parsing via the bundled bencode decoder
-- BEP-5 DHT for peer discovery, dual-stack (IPv4 + IPv6 via BEP-32) when an IPv6 socket can be bound
+- Magnet link resolution (session fast-path for already-managed torrents, then tracker + DHT). Accepts both `xt=urn:btih:` (v1) and `xt=urn:btmh:` (v2 multihash) URNs; hybrid magnets carry both
+- `.torrent` file parsing via the bundled bencode decoder; supports v1, pure-v2, and hybrid metainfo (BEP 52 `meta version=2` with `file tree` and `piece layers`)
+- BEP-5 DHT for peer discovery, dual-stack (IPv4 + IPv6 via BEP-32) when an IPv6 socket can be bound. Pure-v2 swarms announce the leading 20 bytes of the SHA-256 info-hash on the v1 DHT/trackers per BEP 52
 - BEP-14 Local Service Discovery (LSD) for peers on the same LAN
 - BEP-10 extension protocol with `ut_metadata` (BEP-9); the `ut_pex` extension id is advertised but BEP-11 peer ingest is not yet wired
 - BEP-8 Message Stream Encryption (MSE/PE) with selectable `plaintext` / `prefer` / `require` policy
+- BEP-52 BitTorrent v2: SHA-256 Merkle piece-tree verification (16 KiB block leaves), reserved-bit `0x08` in handshake byte 7 advertises v2 capability, and the `HashRequest` / `Hashes` / `HashReject` wire messages exchange Merkle layer slices with sibling proofs
 - UPnP IGD port forwarding for the listener (TCP + UDP)
-- Rarest-first piece selection with endgame mode and SHA-1 verification off the async runtime
+- Rarest-first piece selection with endgame mode; SHA-1 (v1) or SHA-256 Merkle root (v2) verification off the async runtime
 - HTTP/HTTPS (BEP-23 compact) and UDP (BEP-15) trackers
 - Configurable seeding (ratio, time, or keep-seeding), upload speed limiting
 - Tunable per-peer request pipeline and per-torrent peer cap
+
+<Callout type="info">
+Pure-v2 magnet links without embedded `piece layers` are not yet supported (the metadata exchange only resolves v1/hybrid info dicts). Hybrid magnets and pure-v2 `.torrent` files work.
+</Callout>
 
 ### Key Options
 
@@ -116,10 +121,63 @@ Downloads HTTP Live Streaming content:
 
 File Transfer Protocol handler:
 
-- FTP with optional TLS encryption
-- SFTP (SSH File Transfer Protocol)
+- FTP with optional implicit-TLS encryption (FTPS)
+- SFTP (SSH File Transfer Protocol) via `russh` + `russh-sftp`
+- Server host keys pinned on first use (TOFU) via `engine/ssh_known_hosts.rs`; subsequent fingerprint mismatches are refused. The same store is shared with the SFTP upload sink so trust state stays consistent across download and upload paths
 - Passive mode support
 - Directory listing and file download
+
+## YouTube (yt-dlp)
+
+**Module**: `engine/youtube.rs`
+
+Delegates extraction and download to a bundled `yt-dlp` child process. Recognises any URL `engine::youtube::is_youtube_uri` matches (YouTube, plus the broader extractor list yt-dlp supports). The handler:
+
+- Probes the URL with `yt-dlp -J` to fetch a JSON video info object (title, duration, formats), exposed via the Tauri command `get_youtube_video_info`
+- Spawns `yt-dlp` with `--newline --progress-template` and parses progress lines into the same atomic counters used by HTTP/BT, so the regular speed/progress UI works
+- Honours the `youtube-format` user option (yt-dlp format selector, e.g. `bestvideo+bestaudio/best`)
+- Watches yt-dlp's `Destination:` and `before_dl` lines to learn the resolved output filename
+- Forwards `all-proxy` to yt-dlp's `--proxy`
+
+Routed automatically by `add_uri` whenever `is_youtube_uri` matches; the dedicated `add_youtube` Tauri command and `risuko.addYouTube` RPC method bypass detection.
+
+## ADC / Direct Connect (NMDC + ADC dialects)
+
+**Module**: `engine/adc/`
+
+Schemes: `adc://`, `adcs://` (TLS), `dchub://`, `nmdc://`. Default port `411` (ADC), `412` (ADCS). Two dialects share the same module:
+
+- **NMDC** — line-oriented `$Lock`/`$Key`, `$MyINFO`, `$Search`, `$SR`, `$ADCGET` text protocol used by the legacy DC++ network
+- **ADC** — binary-tagged frame protocol (`CSUP`, `BINF`, `BGET`, `BRES`)
+
+Direct file URIs of the form `dchub://hub.host[:port]/?TTH=<base32>&xl=<bytes>&dn=<name>` carry the TTH hash, file size and display name. The handler connects to the hub, queries for a peer holding that TTH, then transfers the file via `$ADCGET file …` (NMDC) or `CGET file …` (ADC).
+
+## Gnutella 0.6
+
+**Module**: `engine/gnutella/`
+
+URI scheme: `gnutella://host[:port]/uri-res/N2R?urn:sha1:<base32>` (also `gnet://`). Default port `6346`. The handler:
+
+- Bootstraps via GWebCache HTTP discovery to find ultrapeers (`gnutella-cache` option)
+- Performs the `GNUTELLA CONNECT/0.6` three-step handshake
+- Speaks the 23-byte binary descriptor header (16-byte GUID + type/TTL/hops/payload-length) with `PING` / `QUERY` / `QUERYHIT`
+- Downloads via HTTP/1.1 from the holding peer with `X-Gnutella-Content-URN` header
+
+## Gnutella2 (G2)
+
+**Module**: `engine/g2/`
+
+URI scheme: `g2://host[:port]/sha1/<base32>?xl=<bytes>&dn=<name>`. Default port `6346`. Reuses the Gnutella HTTP `uri-res/N2R` peer fetch path since both networks serve content over the same peer-to-peer HTTP/1.1 endpoint. Bootstrap caches are configured via `g2-cache`.
+
+## giFT IPC bridge
+
+**Module**: `engine/gift/`
+
+URI scheme: `gift://<inner-uri>`. Off by default. When `gift-enabled` is `true`, the handler connects to a locally-running `giftd` daemon (default `127.0.0.1:1213`, override with `gift-host` / `gift-port`) over its line-oriented IPC socket and forwards the inner URI verbatim. Status is parsed from `TRANSFER STATUS id=… total=… done=… state=active|complete|...` lines so progress bars work like any other transfer. Cancelling the task issues a `TRANSFER REMOVE id=…` to giftd.
+
+<Callout type="info">
+The legacy P2P stacks (ADC/Direct Connect, Gnutella, G2, giFT) are best-effort and depend on the public network still being reachable. They share the engine's progress/cancel/auto-retry plumbing but bypass the multi-threaded HTTP downloader.
+</Callout>
 
 ## RSS
 
@@ -134,17 +192,49 @@ Automatic feed subscription and download:
 
 The RSS manager uses `tokio::spawn` for async polling and requires a tokio runtime context.
 
+## Cloud Upload Sinks
+
+**Module**: `engine/upload/`
+
+Push completed downloads to a remote destination. The upload subsystem mirrors
+the `RssManager` pattern: a single `UploadSinkManager` owns sinks, routing
+rules, and a bounded job queue. Each protocol implements an `UploadSink`
+trait (`upload` + `test`) and is dispatched from `manager::build_sink_runtime`.
+
+| File | Role |
+|------|------|
+| `sink.rs` | `UploadSink` trait, `SinkConfig` discriminated union, `UploadFile` / `UploadControl` / `UploadProgress` |
+| `manager.rs` | `UploadSinkManager`: CRUD, persistence, semaphore-bounded job queue, event emission |
+| `rules.rs` | `UploadRule` matcher (categories, extensions, size bounds, task kinds) |
+| `webdav.rs` | WebDAV: single `PUT`, `MKCOL` for missing parents, optional Basic auth, optional self-signed-cert mode |
+| `s3.rs` | S3-compatible: SigV4 with `UNSIGNED-PAYLOAD`. Single `PUT` up to 5 GiB, then 3-step multipart pipeline (`POST ?uploads=` → `PUT ?partNumber&uploadId` → `POST ?uploadId`) with a 64 MiB default part size and best-effort `DELETE ?uploadId` to abort orphaned uploads. Virtual-host or path-style URLs |
+| `sftp.rs` | SFTP via `russh` + `russh-sftp`, password or PEM private-key auth. Server host keys are pinned on first use (TOFU) via the shared `ssh_known_hosts` store and refused on mismatch |
+| `ftp.rs` | FTP / implicit-TLS FTPS via `suppaftp`, optional self-signed-cert mode (`insecure`) |
+
+Sink selection is per-task override → first matching rule → default sink id.
+The manager runs uploads on a `tokio::Semaphore` (default permits = `2`,
+clamped to `1..=16`) and emits `engine:upload-{queued,start,complete,error,cancelled}`
+events. Persisted state lives under the `upload-sinks` key via `StorageBackend`.
+
+See the [Cloud Upload Sinks guide](/docs/guides/cloud-uploads) for user-facing
+configuration.
+
 ## Protocol Routing
 
-The engine does **not** auto-detect protocols from URLs. Each protocol has a dedicated RPC method or API function:
+The Tauri `add_uri` command and the desktop **Add Task** modal sniff the URI scheme to dispatch transparently. The raw JSON-RPC layer keeps protocol-specific methods so that aria2-style clients still know exactly what they're calling:
 
-| Protocol | RPC Method | Node.js Function | CLI |
-|----------|-----------|-----------------|-----|
-| HTTP/HTTPS | `risuko.addUri` | `addUri` | `risuko download <url>` |
-| BitTorrent (.torrent) | `risuko.addTorrent` | `addTorrent` | `risuko download <file.torrent>` (auto-detected) |
-| BitTorrent (magnet) | — | `addMagnet` | Passed to `addUri` |
-| ED2K | `risuko.addEd2k` | `addEd2k` | — |
-| M3U8/HLS | — | `addM3u8` | — |
-| FTP/SFTP | — | `addFtp` | — |
+| Protocol | URI scheme(s) | RPC Method | Node.js Function | CLI |
+|----------|---------------|-----------|-----------------|-----|
+| HTTP/HTTPS | `http(s)://` | `risuko.addUri` | `addUri` | `risuko download <url>` |
+| BitTorrent (.torrent) | — (file path) | `risuko.addTorrent` | `addTorrent` | `risuko download <file.torrent>` (auto-detected) |
+| BitTorrent (magnet) | `magnet:` | `risuko.addUri` (sniffed) | `addMagnet` | Passed to `addUri` |
+| ED2K | `ed2k://` | `risuko.addEd2k` | `addEd2k` | — |
+| M3U8/HLS | `*.m3u8`, `*.m3u` | `risuko.addUri` (sniffed) | `addM3u8` | — |
+| FTP/SFTP | `ftp(s)://`, `sftp://` | `risuko.addUri` (sniffed) | `addFtp` | — |
+| YouTube (yt-dlp) | YouTube + yt-dlp extractors | `risuko.addYouTube` | `addYouTube` | — |
+| ADC / Direct Connect | `adc(s)://`, `dchub://`, `nmdc://` | `risuko.addUri` (sniffed) | — | — |
+| Gnutella 0.6 | `gnutella://`, `gnet://` | `risuko.addUri` (sniffed) | — | — |
+| Gnutella2 (G2) | `g2://` | `risuko.addUri` (sniffed) | — | — |
+| giFT IPC | `gift://` | `risuko.addUri` (sniffed) | — | — |
 
-The CLI's `download` command only distinguishes `.torrent` files (by checking if the path ends with `.torrent` and exists on disk). All other inputs are passed to `addUri`. The Node.js API provides protocol-specific functions (`addTorrent`, `addMagnet`, `addEd2k`, `addM3u8`, `addFtp`) that call the engine directly.
+The CLI's `download` command only distinguishes `.torrent` files (by checking if the path ends with `.torrent` and exists on disk). All other inputs are passed to `addUri`. The Node.js API also offers protocol-specific functions (`addTorrent`, `addMagnet`, `addEd2k`, `addM3u8`, `addFtp`, `addYouTube`) that call the engine directly without scheme sniffing.

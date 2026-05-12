@@ -3,7 +3,7 @@ title: Introduction
 description: Risuko is a Rust-powered multi-protocol download engine with a desktop app, CLI, and Node.js API.
 ---
 
-Risuko (Ri-su-ko) is a high-performance download engine written in Rust. It supports HTTP/HTTPS, BitTorrent, ED2K, M3U8/HLS, FTP/SFTP, and RSS feeds. 
+Risuko (Ri-su-ko) is a high-performance download engine written in Rust. It supports HTTP/HTTPS, BitTorrent (v1 + v2), ED2K, M3U8/HLS, FTP/SFTP, YouTube (via yt-dlp), the legacy P2P stacks (ADC / Direct Connect, Gnutella, G2, giFT), and RSS feeds.
 
 The name means squirrel in Japanese, an energetic little creature that rapidly gathers and caches away every treasure it finds.
 
@@ -18,11 +18,23 @@ You can use Risuko in three ways:
 | Protocol | Description |
 |----------|-------------|
 | HTTP/HTTPS | Multi-threaded range-based downloads with connection pooling |
-| BitTorrent | Magnet links, `.torrent` files, dual-stack DHT, LSD, MSE/PE encryption, UPnP port mapping, seeding control |
+| BitTorrent | Magnet links, `.torrent` files, **v1 + v2 (BEP 52) hybrid**, dual-stack DHT, LSD, MSE/PE encryption, UPnP port mapping, seeding control |
 | ED2K | eDonkey2000 network protocol |
-| M3U8/HLS | HTTP Live Streaming segment downloads |
-| FTP/SFTP | File Transfer Protocol with TLS support |
+| M3U8/HLS | HTTP Live Streaming segment downloads (with AES-128-CBC decrypt) |
+| FTP/SFTP | File Transfer Protocol with TLS support; SFTP host keys pinned via TOFU |
+| YouTube | Bundled `yt-dlp` child process with progress integration |
+| ADC / DC | `adc(s)://`, `dchub://`, `nmdc://` — Advanced Direct Connect + legacy NMDC |
+| Gnutella | `gnutella://` / `gnet://` — 0.6 handshake + GWebCache bootstrap |
+| Gnutella2 (G2) | `g2://` — SHA-1 URN download via Gnutella's HTTP peer endpoint |
+| giFT | `gift://` — IPC bridge to a locally-running `giftd` daemon |
 | RSS | Automatic feed subscription and download |
+
+## Cloud Upload Sinks
+
+The desktop app can mirror every finished download to a remote destination.
+Supported backends: **WebDAV**, **S3 (and compatible)**, **SFTP**, and
+**FTP/FTPS**. See the [Cloud Upload Sinks guide](/docs/guides/cloud-uploads)
+for routing rules and post-upload actions.
 
 ## Quick Example
 

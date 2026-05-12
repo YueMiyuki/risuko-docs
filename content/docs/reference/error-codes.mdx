@@ -75,6 +75,7 @@ When a download fails, the error code and a human-readable message are stored on
 | 500 | Metadata Failed | Failed to resolve torrent metadata from peers or trackers. |
 | 501 | No Seeds | No seeders are available for this torrent. |
 | 502 | Invalid Torrent File | The `.torrent` file is corrupt or not a valid BitTorrent metainfo file. |
+| 503 | BitTorrent v2 Piece Layers Unavailable | A pure-v2 magnet resolved its info dict but no peer served the BEP 52 piece-layer hashes. The torrent cannot be verified until the layers are obtained — importing the `.torrent` file directly always works. |
 
 ### ED2K
 
@@ -99,7 +100,15 @@ When a download fails, the error code and a human-readable message are stored on
 | 531 | FTP File Not Found | The file does not exist on the FTP server. |
 | 532 | FTP Transfer Failed | The file transfer was interrupted or failed. |
 | 533 | SFTP Auth Failed | SFTP authentication failed. Check your credentials or private key. |
-| 534 | SFTP Host Key Failed | The SFTP server's host key could not be verified. |
+| 534 | SFTP Host Key Failed | The SFTP server's host key could not be verified, or the pinned fingerprint changed (TOFU). |
+
+### YouTube (yt-dlp)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 540 | yt-dlp Not Found | The bundled `yt-dlp` binary could not be located on `PATH`. Reinstall the app or install `yt-dlp` manually. |
+| 541 | Authentication Required | The video requires login. Provide cookies via `load-cookies` or `cookie`. |
+| 542 | Format Unavailable | The format selector in `youtube-format` did not match any of the formats yt-dlp returned. |
 
 ## Resource Errors (6xx)
 

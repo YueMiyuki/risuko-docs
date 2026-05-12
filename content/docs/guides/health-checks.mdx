@@ -1,0 +1,101 @@
+---
+title: Health Checks
+description: Diagnose engine, network, BitTorrent, disk, and configuration health from a single panel.
+---
+
+The desktop app ships a **Health** panel that aggregates cheap probes
+across the engine, the host system, and the saved configuration into a
+single colour-coded report. It is the first place to look when a download
+is misbehaving and you want to find out whether the problem is the
+network, the disk, the proxy, BitTorrent connectivity, or a stale config
+value.
+
+## Categories
+
+The report is grouped into the following categories. You can request a
+subset (or run the slow probes) by passing options to the underlying
+Tauri command — see [Programmatic Access](#programmatic-access) below.
+
+| Category | What it checks |
+|----------|----------------|
+| `general` | Engine running state, uptime, version |
+| `network` | Proxy reachability (slow probe), HTTP egress, DNS via `cloudflare.com` trace endpoint |
+| `bittorrent` | DHT readiness, UPnP / LSD / encryption flags, listen-port reachability, active tracker URLs |
+| `disk` | Download directory writability, free space, file allocation strategy |
+| `system` | Auto-launch state, "prevent sleep while downloading" toggle, OS-level sleep inhibitor activity |
+| `config` | Stale values that need an engine restart, deprecated keys, secret-but-empty fields |
+| `logs` | Log directory location, recent error tail (last 1 MiB) |
+| `tools` | Bundled helper presence: `yt-dlp`, `ffmpeg`, OS keychain |
+
+Each individual check returns one of:
+
+- `ok` — Healthy
+- `warn` — Working but suboptimal (e.g. UPnP disabled while you're behind NAT)
+- `fail` — Broken (e.g. download dir not writable)
+- `skipped` — Not run (slow probe disabled, or feature inactive)
+
+The category status is the worst of its checks; the overall status is the
+worst across categories.
+
+## Suggested Fixes
+
+Each check can carry a structured `fix` hint that the panel turns into a
+button:
+
+| Fix kind | Action |
+|----------|--------|
+| `open-preference` | Jumps to a specific Preferences pane (`target` field) |
+| `restart-engine` | Quits and relaunches the embedded engine |
+| `open-log-dir` | Reveals the log directory in the OS file manager |
+
+## Programmatic Access
+
+The panel calls one Tauri command:
+
+```ts
+import { invoke } from "@tauri-apps/api/core";
+
+const report = await invoke("run_health_checks", {
+  // Optional: limit to a subset of categories
+  categories: ["network", "bittorrent"],
+  // Optional: enable slow probes (proxy reachability, etc.)
+  slowProbes: true,
+});
+```
+
+The response shape is:
+
+```ts
+type HealthStatus = "ok" | "warn" | "fail" | "skipped";
+
+interface HealthReport {
+  generatedAtMs: number;
+  engineRunning: boolean;
+  overallStatus: HealthStatus;
+  categories: Array<{
+    id: string;
+    status: HealthStatus;
+    checks: Array<{
+      id: string;
+      status: HealthStatus;
+      message: string;
+      hint?: string;
+      fix?: { kind: string; target?: string };
+      details?: unknown;
+    }>;
+  }>;
+  logPath: string;
+}
+```
+
+> [!INFO]
+> Health checks are not exposed over JSON-RPC. They depend on Tauri-side
+> state (autostart manager, sleep inhibitor) that the standalone CLI
+> engine does not own.
+
+## When to Run Slow Probes
+
+Slow probes (currently: proxy reachability against
+`https://www.cloudflare.com/cdn-cgi/trace`, capped at 4 s) are skipped by
+default so the panel stays snappy. Re-run with `slow_probes: true` when
+you actually suspect outbound connectivity is the issue.

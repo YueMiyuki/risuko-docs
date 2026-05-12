@@ -1,0 +1,162 @@
+---
+title: Cloud Upload Sinks
+description: Mirror finished downloads to a remote destination over WebDAV, S3, SFTP, or FTP.
+---
+
+Risuko can push every completed download to a remote storage backend. Each
+destination is called a **sink**; you can route files to different sinks via
+**rules**, and decide what to do with the local copy after the upload
+succeeds.
+
+<Callout type="warn">
+Cloud upload sinks are currently exposed only through the **desktop app** (Preferences → Cloud Sinks).  
+The CLI and Node.js API do not yet expose
+</Callout>
+
+## Supported Protocols
+
+| Protocol | Notes |
+|----------|-------|
+| **WebDAV** | Single `PUT` per file with optional Basic auth. Supports skipping TLS verification for self-signed homelab servers. Issues `MKCOL` for missing parent directories. |
+| **S3 (and compatible)** | SigV4 with `UNSIGNED-PAYLOAD`. Files up to 5 GiB use a single `PUT`; larger files are sent through a 3-step multipart pipeline (Initiate → `UploadPart` × N → Complete) with a 64 MiB default part size and a best-effort `DELETE` to abort orphaned uploads on failure. Tested against AWS S3, MinIO, Backblaze B2 (S3 API), Cloudflare R2, Wasabi, and Garage. Supports both virtual-hosted and path-style addressing. |
+| **SFTP** | SSH File Transfer Protocol via `russh` + `russh-sftp`. Authenticates with a password or a PEM-encoded private key (OpenSSH or PKCS#1). Server host keys are pinned on first use (TOFU) and stored alongside the engine config; subsequent mismatches are refused. |
+| **FTP / FTPS** | Plain FTP or implicit-TLS FTPS via `suppaftp`. Anonymous mode is automatic when no username is supplied. Optional `insecure` flag skips TLS certificate verification. |
+
+## Sink Configuration
+
+Every sink shares the same envelope: a stable id, a display label, the
+protocol-specific config, a post-upload action, and an optional move target.
+
+### WebDAV
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `endpoint` | yes | Base URL — e.g. `https://example.com/remote.php/dav/files/me` |
+| `basePath` | no | Sub-folder under the endpoint |
+| `username` | no | Basic-auth username |
+| `password` | no | Basic-auth password (persisted in the OS keychain — see [Persistence](#persistence)) |
+| `insecure` | no | Skip TLS certificate validation. Only enable for trusted private servers |
+
+### S3
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `endpoint` | yes | e.g. `https://s3.amazonaws.com` or `http://minio.local:9000` |
+| `region` | no | Used for the SigV4 signing scope. Defaults to `us-east-1` when blank |
+| `bucket` | yes | Bucket name |
+| `accessKeyId` | yes | Access key ID |
+| `secretAccessKey` | yes | Secret access key (persisted in the OS keychain — see [Persistence](#persistence)) |
+| `prefix` | no | Prepended to every object key |
+| `forcePathStyle` | no | Use bucket-in-path URLs (`/{bucket}/{key}`) instead of virtual-host style. **Required for MinIO and most self-hosted S3** |
+
+### SFTP
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `host` | yes | Hostname or IP |
+| `port` | no | Defaults to `22` |
+| `username` | yes | SSH username |
+| `password` | conditional | Used when non-empty; otherwise the private key is tried. Persisted in the OS keychain |
+| `privateKey` | conditional | PEM-encoded OpenSSH or PKCS#1 private key. Persisted in the OS keychain |
+| `basePath` | no | Remote base directory; defaults to the login home |
+
+### FTP
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `host` | yes | Hostname or IP |
+| `port` | no | Defaults to `21` (use `990` for implicit FTPS) |
+| `username` | no | Defaults to `anonymous` |
+| `password` | no | Defaults to `risuko@` when empty (anonymous convention). Persisted in the OS keychain |
+| `basePath` | no | Remote base directory (created on demand) |
+| `secure` | no | When true, connects with implicit TLS (FTPS) |
+| `insecure` | no | Skip TLS certificate verification when `secure` is enabled |
+
+## Post-Upload Actions
+
+After a sink reports success, Risuko runs the configured action against the
+local file:
+
+| Action | Behaviour |
+|--------|-----------|
+| `keep` *(default)* | Leave the local file in place |
+| `trash` | Delete the local file |
+| `move` | Move the file into a configured directory (set `moveTarget`) |
+
+If a move target directory does not exist, Risuko creates it.
+
+## Routing: Default Sink + Rules
+
+When a download finishes, Risuko picks one sink (or none) using this order:
+
+1. **Per-task override** — if the task was started with an explicit sink id
+2. **First matching rule** — rules are evaluated in array order; the first
+   one that matches wins
+3. **Default sink** — falls through to whichever sink was marked default
+
+A rule can filter on:
+
+| Field | Description |
+|-------|-------------|
+| `categories` | File-category names (`music`, `video`, `image`, `document`, `compressed`, `program`) |
+| `extensions` | Lowercase file extensions without a leading dot (e.g. `mp4`, `iso`) |
+| `minSize` / `maxSize` | Inclusive size bounds in bytes |
+| `taskKinds` | Task kinds: `Http`, `Torrent`, `M3u8`, `Ftp`, `Ed2k` |
+
+A rule with no fields matches everything. Disabled rules are skipped.
+
+## Concurrency
+
+The upload manager runs a bounded job queue with a default concurrency of
+**2**. You can change the limit (clamped to `1..=16`) in Preferences. The new
+value is persisted and applied live: the manager swaps in a fresh
+`tokio::Semaphore` and closes the previous one, so queued workers wake on
+the old semaphore and re-acquire on the new one. In-flight jobs keep their
+existing permit and finish under the previous limit.
+
+## Job Lifecycle
+
+Each scheduled upload becomes an **`UploadJob`** that emits Tauri events as
+its status changes:
+
+| Event | When |
+|-------|------|
+| `engine:upload-queued` | Job enqueued, waiting for a permit |
+| `engine:upload-start` | Job picked up by a worker |
+| `engine:upload-complete` | Sink reported success |
+| `engine:upload-error` | Sink returned an error |
+| `engine:upload-cancelled` | Job cancelled while uploading |
+
+Live byte progress is folded into job snapshots returned by
+`list_upload_jobs` — the frontend does not receive a separate event per
+flushed chunk.
+
+## Test Connectivity
+
+Every sink implements a quick `test()` round-trip:
+
+- **WebDAV** — `PROPFIND` against the resolved base URL
+- **S3** — `HEAD` against the bucket root
+- **SFTP** — open + close session
+- **FTP** — connect + `NOOP` + quit
+
+Use the **Test** button in the sink form to verify credentials before saving.
+
+## Persistence
+
+Non-secret state — sinks, rules, the default-sink id, and the concurrency
+setting — is persisted under the `upload-sinks` key via the same
+`StorageBackend` trait used by RSS.
+
+Secrets (WebDAV / FTP / SFTP passwords, SFTP private keys, S3 secret access
+keys) are stored separately in the OS keychain under the
+`risuko-sinks` service: macOS Keychain, Windows Credential Manager, or Linux
+Secret Service. Each sink id is one keychain entry whose value is a JSON
+object containing only the sensitive fields.
+
+When the OS keychain is unavailable (headless Linux without D-Bus, sandboxed
+environments, etc.) the engine falls back to a durable secret map embedded
+in the `upload-sinks` blob so secrets still survive restarts. On startup the
+app rehydrates each sink's secrets from the vault — or from the local
+fallback when the vault has no entry — back into the in-memory
+`UploadSinkManager`.

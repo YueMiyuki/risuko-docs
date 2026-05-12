@@ -67,3 +67,33 @@ RSS feed data is stored using the `StorageBackend` trait:
 - **CLI/Node.js**: Uses `FileStorage` (JSON files in the config directory)
 
 Feed state survives engine restarts. Previously downloaded items are not re-downloaded.
+
+## Rules
+
+The desktop app's RSS panel exposes a rule engine that decides which items
+get downloaded automatically. Rules are evaluated against the parsed item
+metadata (title, parsed series/season/episode, size, seeders, quality tags)
+and either match in priority order (`AnyMatch`, the default) or by best
+score across the active set (`BestMatch`).
+
+Each rule supports the following knobs (`RssRule` in
+[`engine/rss/types.rs`](https://github.com/YueMiyuki/Risuko/blob/master/src-tauri/risuko-engine/src/engine/rss/types.rs)):
+
+| Field | Description |
+|-------|-------------|
+| `name`, `is_active`, `auto_download` | Identification + master switches |
+| `feed_ids` | Restrict to specific feed IDs (empty = all feeds) |
+| `priority`, `mode` | Conflict resolution (`any-match` / `best-match`) |
+| `title_must`, `title_must_not` | Lists of `{ kind, value, case_sensitive }` patterns where `kind` is `contains`, `glob`, or `regex` |
+| `min_size_bytes`, `max_size_bytes`, `min_seeders` | Size / health gates |
+| `series_filter`, `seasons`, `episodes` | Series name match plus season list and an `episodes` selector (`all`, `from { start }`, `range { start, end }`, `specific { values }`) |
+| `quality_preferences`, `required_qualities`, `forbidden_qualities` | Tokens matched against the title parser's extracted quality tags (e.g. `1080p`, `HEVC`, `WEB-DL`) |
+| `upgrade_existing` | Re-download a previously-grabbed episode when a higher-ranked quality appears |
+| `download_dir`, `filename_template` | Per-rule output overrides; supports `{title}`, `{series}`, `{season}`, `{episode}`, `{quality}` placeholders |
+| `schedule`, `cooldown_secs` | Time-of-day / weekday window and minimum interval between matches |
+
+Title metadata (series, season, episode, quality, codec, group) is extracted
+by the parser in
+[`engine/rss/parser.rs`](https://github.com/YueMiyuki/Risuko/blob/master/src-tauri/risuko-engine/src/engine/rss/parser.rs)
+before rules run, so filters can address parsed fields directly without
+needing custom regex.

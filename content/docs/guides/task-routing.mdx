@@ -1,0 +1,95 @@
+---
+title: Task Routing
+description: Route downloads to different directories and tag them based on the inferred filename.
+---
+
+Risuko can decide where a download goes (and how it is labelled) by matching
+the inferred output filename against an ordered list of glob rules. This is
+useful for sorting videos, music, archives, or specific projects into
+dedicated folders without configuring every task by hand.
+
+## How a Task Is Routed
+
+When a new task is created, the engine inspects the URI to infer an output
+filename (the same logic that powers `out` defaulting). It then walks the
+configured rules:
+
+1. **Custom routing rules** — the first **enabled** rule whose
+   case-insensitive glob `pattern` matches the filename wins. The matching
+   rule's `dir` becomes the download directory, and its `label` is exposed
+   as the task's tag.
+2. **Legacy category fallback** — if no rule matches, the engine resolves
+   the filename to a built-in category (`video`, `audio`, `archive`,
+   `image`, `document`, `executable`) and looks it up in
+   [`file-category-dirs`](/docs/configuration#storage).
+3. **Default** — falls back to the global `dir` setting.
+
+`{rule-dir, label}` and `{category-dir, category}` are returned with empty
+`dir` fields skipped (so a rule with no `dir` simply tags the task and lets
+the next layer pick the directory).
+
+## Rule Shape
+
+Stored in the user config under [`task-routing-rules`](/docs/configuration#task-routing):
+
+```json
+{
+  "id": "rule-videos",
+  "label": "Videos",
+  "pattern": "*.{mp4,mkv,webm,mov}",
+  "dir": "/Users/me/Downloads/Videos",
+  "enabled": true
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | Stable identifier (assigned by the engine if omitted on add) |
+| `label` | Human-readable tag attached to matching tasks |
+| `pattern` | Case-insensitive glob (`glob` crate syntax). Matched against the **filename only**, not the URL or directory |
+| `dir` | Absolute directory; trimmed empty strings are ignored |
+| `enabled` | Set to `false` to keep the rule but skip it during evaluation |
+
+## Managing Rules
+
+### Desktop App
+
+Open **Preferences → Routing** to create, reorder, and toggle rules
+visually. Changes are persisted immediately.
+
+### RPC
+
+The same operations are exposed over JSON-RPC for headless setups:
+
+| Method | Description |
+|--------|-------------|
+| `risuko.listRoutingRules` | Return the current rule list |
+| `risuko.addRoutingRule` | Append a rule (the server fills in `id` if missing) |
+| `risuko.updateRoutingRule` | Replace a rule by `id` |
+| `risuko.removeRoutingRule` | Delete a rule by `id` |
+| `risuko.resolveRouting` | Preview the `{ tag, dir }` decision for a given filename without creating a task |
+
+```bash
+curl -X POST http://localhost:16800/jsonrpc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "risuko.resolveRouting",
+    "params": ["awesome-show.S01E03.1080p.mkv"]
+  }'
+```
+
+## Glob Cheatsheet
+
+Patterns use the [`glob`](https://docs.rs/glob/) crate's syntax, matched
+case-insensitively against the basename:
+
+| Pattern | Matches |
+|---------|---------|
+| `*.mkv` | Any `.mkv` file |
+| `*.{mp4,mkv,webm}` | Any of the listed extensions |
+| `*1080p*` | Filenames containing `1080p` (any case) |
+| `[Aa]nime - *.mkv` | Files starting with `Anime - ` or `anime - ` |
+
+Invalid patterns are skipped silently rather than aborting routing.

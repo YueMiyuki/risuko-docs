@@ -1,7 +1,6 @@
 ---
 title: Configuration
 description: Risuko configuration reference — all available options.
-icon: Settings
 ---
 
 Risuko stores configuration in two JSON files in the config directory:
@@ -121,6 +120,11 @@ await changeGlobalOption({
 | Key | Default | Description |
 |-----|---------|-------------|
 | `file-allocation` | `falloc` | Disk reservation strategy. `falloc` reserves real blocks via `fallocate(2)` (Linux) or `fcntl(F_PREALLOCATE)` (macOS), falling back to `set_len`. `trunc` only sets the file length. `none` lets writes grow the file as needed. The aria2 alias `prealloc` is accepted as a synonym for `falloc` |
+| `auto-file-renaming` | `true` | When the target output file already exists, append `.1`, `.2`, … instead of overwriting |
+| `remote-time` | `false` | Stamp the local file mtime from the server's `Last-Modified` header on completion (per-task) |
+| `use-remote-file-time` | — | UI/global preference mirrored into per-task `remote-time` when set |
+| `m3u8-output-format` | `ts` | Container produced after concatenating HLS segments (`ts` keeps the original transport stream; other values trigger a remux) |
+| `file-category-dirs` | — | Per-category default directory overrides (object keyed by category id, e.g. `{ "video": "/downloads/video" }`); applied as a fallback when no [routing rule](/docs/guides/task-routing) matches |
 
 ### BitTorrent
 
@@ -151,3 +155,84 @@ backwards compatibility but currently have no effect.
 | `rpc-listen-port` | `16800` | RPC server port |
 | `rpc-host` | `127.0.0.1` | RPC bind address (set to `0.0.0.0` for LAN access) |
 | `rpc-secret` | — | RPC authentication token |
+
+### YouTube (yt-dlp)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `youtube-format` | yt-dlp default | yt-dlp `-f` format selector (e.g. `bestvideo+bestaudio/best`, `mp4`) |
+
+### RSS
+
+See the [RSS Feeds guide](/docs/guides/rss) for the full workflow. RSS subscriptions, items, and rules are persisted via the desktop app's storage; the keys below are user-level UI preferences.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `rss-auto-update` | — | Enable periodic feed polling (boolean; controlled from the RSS panel) |
+| `rss-update-interval` | — | Polling interval in minutes between automatic refreshes |
+
+### Task Routing
+
+See the [Task Routing guide](/docs/guides/task-routing).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `task-routing-rules` | `[]` | Array of `{ id, label, pattern, dir, enabled }` rules. The first enabled rule whose case-insensitive glob `pattern` matches the inferred filename wins; `dir` overrides the download directory and `label` is exposed as the task tag. Falls through to `file-category-dirs` then global `dir` |
+
+### Completion Scripts
+
+Run a script after every download finishes (success or failure). Per-task overrides are accepted via the desktop app's task options. See the [Completion Scripts guide](/docs/guides/completion-scripts).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `completion-script-enabled` | `false` | Master switch. When false, no script runs even if `command` is set |
+| `completion-script-command` | — | Absolute path to the executable to invoke (no shell parsing) |
+| `completion-script-args` | — | Whitespace-tokenised arguments template. Supported placeholders inside any token: `{path}` (final file path), `{hash}` (task GID), `{status}` (`complete` / `error` / `cancelled`). The same values are also exported as `RISUKO_PATH`, `RISUKO_HASH`, `RISUKO_STATUS` env vars |
+| `completion-script-timeout-ms` | `30000` | Per-invocation timeout in milliseconds. Clamped to `1000`–`300000` (5 minutes). stdout/stderr captured into the log are truncated to 8 KiB |
+
+### Saved Credentials
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `saved-credentials` | `[]` | Non-secret credential profile metadata (id, label, scope, username). Passwords and SSH private keys are stored separately in the OS keychain (`risuko-credentials` service) and never written to `user.json` |
+
+### Legacy P2P / IPC stacks
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `adc-hub` | — | Default ADC / DC hub URI (`adc(s)://`, `dchub://`, `nmdc://`) used as a hint when a file URI doesn't include one |
+| `adc-nick` | — | Nickname presented to the ADC / DC hub |
+| `gnutella-cache` | — | GWebCache URLs (comma-separated) used to bootstrap Gnutella ultrapeers |
+| `g2-cache` | — | Bootstrap caches for the Gnutella2 (G2) network |
+| `gift-enabled` | `false` | Allow `gift://` URIs to be forwarded to a local `giftd` daemon |
+| `gift-host` | `127.0.0.1` | giFT IPC bind address |
+| `gift-port` | `1213` | giFT IPC port |
+
+### External Engine
+
+By default the desktop app boots an embedded engine in-process. Switch to
+**External Engine** mode to point the UI at a separately running
+`risuko-cli serve` (or any aria2-compatible RPC server). When enabled, the
+embedded engine is **not** started; all `add_uri`, polling, and config writes
+are routed over JSON-RPC.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `external-engine-enabled` | `false` | Skip the embedded engine and connect to a remote RPC server instead |
+| `external-engine-host` | — | Hostname or IP of the remote RPC server |
+| `external-engine-port` | `16800` | Port of the remote RPC server |
+| `external-engine-secret` | — | Token to send as `token:<secret>` on each call |
+
+## Startup-only Keys
+
+The following keys are read once when the engine starts. Changing them at
+runtime is accepted (the value is persisted) but does **not** take effect
+until the engine is restarted (Quit & relaunch the desktop app, or restart
+`risuko serve`):
+
+`dht-listen-port`, `ed2k-port`, `listen-port`, `rpc-listen-port`,
+`rpc-secret`, `bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
+`bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
+`bt-encryption-policy`, `bt-listen-v6`.
+
+All other keys are hot-reloaded on the next task or polling cycle.
