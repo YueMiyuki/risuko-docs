@@ -78,6 +78,7 @@ await changeGlobalOption({
 | `dir` | OS default | Default download directory |
 | `max-concurrent-downloads` | `5` | Maximum parallel download tasks |
 | `continue` | `true` | Resume interrupted downloads |
+| `purge-record-on-start` | `false` | When the engine starts, drop completed/stopped task records from the session. On-disk files for stopped torrent tasks are preserved (the librqbit orphan-purge step is told to keep files for those info-hashes); HTTP/FTP/etc. payloads on disk are never touched |
 
 ### Connection
 
@@ -115,6 +116,29 @@ await changeGlobalOption({
 | `lowest-speed-limit-timeout` | `30` | How many seconds the transfer must stay below `lowest-speed-limit` before it is considered stalled |
 | `uri-selector` | `feedback` | Mirror selection strategy when a task has multiple URIs: `feedback` (drop slow/failing mirrors), `inorder` (try left-to-right), or `adaptive` (prefer fastest) |
 
+### Low-Speed Auto-Recovery
+
+A separate watchdog from `lowest-speed-limit`. The renderer's `EngineClient`
+samples active task speeds, and any task whose `downloadSpeed` stays under
+`low-speed-threshold` for 3 consecutive polling ticks is force-paused and
+resumed (with a 30-second per-task cooldown between recovery cycles).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `auto-detect-low-speed-tasks` | `false` | Master switch. When `false`, the recovery loop never runs |
+| `low-speed-threshold` | `20` | Speed threshold in KB/s below which a task counts toward the strike count |
+
+<Callout type="warn">
+Pause/resume only revives a single stalled TCP connection — useful for
+HTTP/HTTPS, FTP/SFTP, and HTTP-segment streams (`m3u8`, YouTube). Peer-swarm
+protocols (BitTorrent, ED2K, ADC, Gnutella, G2, giFT) are **explicitly
+excluded** from this recovery: pause tears down peer connections, aborts
+in-flight tracker announces and choke negotiations, and the swarm spends
+minutes warming up again. Tasks whose `kind` is not in
+`{http, ftp, youtube, m3u8}`, or whose `kind` is missing, are skipped.
+</Callout>
+
+
 ### Storage
 
 | Key | Default | Description |
@@ -141,6 +165,7 @@ await changeGlobalOption({
 | `bt-enable-lsd` | `true` | BEP-14 Local Service Discovery via multicast (engine restart) |
 | `bt-encryption-policy` | `prefer` | MSE/PE policy: `plaintext`, `prefer`, or `require` (engine restart) |
 | `bt-listen-v6` | `false` | Also bind an IPv6 TCP listener on the same port (engine restart) |
+| `bt-create-subfolder` | `true` | When `true`, multi-file torrents and magnets are placed under `<dir>/<name>/`. When `false`, files are written directly into `dir`. Single-file torrents are unaffected. Read on each task add (no restart needed); accepted as a per-task option override |
 
 The DHT (BEP-5) is always enabled and runs as a dual-stack client when an
 IPv6 socket can be bound. The BitTorrent listener uses an ephemeral port; the

@@ -43,6 +43,29 @@ const data = await readFile("./ubuntu-24.04.torrent");
 const gid = await addTorrent(data, { dir: "/downloads" });
 ```
 
+## On-Disk Layout
+
+By default, multi-file torrents are written under `<dir>/<torrent-name>/...`.
+Single-file torrents are always written directly under `<dir>/`.
+
+To flatten multi-file torrents into the download directory, disable
+`bt-create-subfolder`:
+
+```js
+await changeGlobalOption({ "bt-create-subfolder": "false" });
+```
+
+```bash
+risuko config set bt-create-subfolder '"false"'
+```
+
+The same option is accepted per-task and overrides the global default.
+Toggling the global setting only affects newly added torrents; existing
+tasks keep the layout chosen at add time. When a task is removed with
+"delete files" enabled, Risuko reads the per-task layout flag (mirrored on
+the bt session handle) so it deletes the right paths regardless of the
+current global value.
+
 ## Seeding Control
 
 By default, Risuko does **not** seed after a torrent completes (`keep-seeding` is `false` and `seed-time` / `seed-ratio` default to `0`). To enable seeding, turn on `keep-seeding`, or set a finite `seed-time` / `seed-ratio`:

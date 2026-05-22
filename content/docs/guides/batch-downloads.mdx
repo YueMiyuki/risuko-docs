@@ -3,6 +3,29 @@ title: Batch Downloads
 description: Download multiple files efficiently with Risuko.
 ---
 
+## Per-URL Rename Directive
+
+In the desktop app's **Add Task** dialog, append `Rename: <filename>` to any
+URL on its own line to override the output filename for just that link:
+
+```
+https://example.com/abc123/file.bin Rename: ubuntu.iso
+https://example.com/xyz/raw?id=42  Rename: report.pdf
+https://example.com/another.zip
+```
+
+- The directive is matched case-insensitively at the end of a line and
+  separated from the URL by whitespace.
+- Filenames may contain spaces; path separators (`/`, `\`) are rejected and
+  the line is treated as a plain URL when one is present.
+- A per-line `Rename:` always wins over the form-level **Rename** field
+  (which still supports the index expansion rule, e.g. `file-(01+1).zip`).
+- Magnet links and `.torrent` files are not affected by this directive
+  (their output names come from the torrent metadata).
+
+`thunder://` links and `curl ...` paste-as-task lines are decoded first and
+the directive is applied to the resulting URL.
+
 ## CLI Batch Downloads
 
 ### From a URL List File

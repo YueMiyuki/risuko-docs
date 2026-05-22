@@ -76,6 +76,17 @@ Download the latest release from [GitHub Releases](https://github.com/YueMiyuki/
 - **Linux**: `.deb`, `.rpm`, or `.AppImage`
 - **Windows**: `.msi` or `.exe` installer
 
+### Linux: WebKitGTK rendering
+
+On Linux, Risuko sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` and
+`WEBKIT_DISABLE_COMPOSITING_MODE=1` at startup when these variables are not
+already defined in the environment. This works around a WebKitGTK 2.42+
+crash on NVIDIA, virtualized GPUs, and Wayland sessions without a working
+GBM backend (`Could not create GBM EGL display: EGL_NOT_INITIALIZED.
+Aborting...` followed by SIGABRT before the window is shown). Export either
+variable yourself before launching Risuko if you need to override the
+default.
+
 ## Use App launcher
 
 Install @risuko/app globally:
