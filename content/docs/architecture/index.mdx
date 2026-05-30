@@ -42,7 +42,7 @@ The project is organized as a Cargo workspace with six crates:
 |-------|------|-------------|
 | `risuko-engine` | Library | Core engine — protocol handlers, RPC server, RSS, upload sinks |
 | `risuko-bt` | Library | In-tree BitTorrent v1 + v2 (BEP 52) engine consumed by `risuko-engine` |
-| `risuko-http` | Library | Minimal `hyper` v1 HTTP client (TLS pool, SOCKS5/HTTP proxy, redirects, cookies, gzip/br/deflate decompression) — no `reqwest` dep |
+| `risuko-http` | Library | Minimal `hyper` v1 HTTP client (TLS pool, SOCKS5/HTTP proxy, redirects, cookies, gzip/br/deflate decompression, pluggable DNS resolver with optional DNS-over-HTTPS) — no `reqwest` dep |
 | `risuko-cli` | Binary | Standalone CLI tool |
 | `risuko-napi` | cdylib | Native Node.js bindings |
 | `risuko` (root) | Binary | Tauri desktop application |

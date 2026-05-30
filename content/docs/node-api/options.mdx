@@ -95,4 +95,8 @@ Defaults come from `system_defaults()` in `src-tauri/risuko-engine/src/config/de
 | `split` | `16` | Default number of HTTP connections for new downloads |
 | `user-agent` | Chrome UA string | Default user agent string |
 | `all-proxy` | `""` | Default proxy URL |
+| `doh-enable` | `false` | Resolve DNS over HTTPS (only active when `doh-url` is set). Hot-reloaded when any `doh-*` key changes |
+| `doh-url` | `""` | DoH endpoint URL; must be `https://` |
+| `doh-bootstrap` | `""` | Comma/space/newline-separated IPs for reaching the endpoint host without system DNS |
+| `doh-fallback` | `true` | Fall back to the system resolver when a DoH query fails |
 | `rpc-listen-port` | `16800` | RPC server port (read at `startEngine` only) |

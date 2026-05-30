@@ -29,6 +29,8 @@ If no running engine is detected, a temporary headless instance is started autom
 | `--header` | `-H` | — | HTTP header (repeatable) |
 | `--user-agent` | — | — | User agent string |
 | `--proxy` | — | — | Proxy server URL |
+| `--doh-url` | — | — | DNS-over-HTTPS endpoint URL (e.g. `https://cloudflare-dns.com/dns-query`). Enables DoH for the engine via `changeGlobalOption` before the task is added |
+| `--doh-bootstrap` | — | — | Comma-separated IPs used to reach the DoH endpoint without a system-DNS lookup (optional) |
 | `--referer` | — | — | HTTP referer |
 | `--cookie` | — | — | Cookie string |
 | `--seed-ratio` | — | — | BitTorrent seed ratio (e.g. `1.0`) |
@@ -51,6 +53,10 @@ risuko download "magnet:?xt=urn:btih:abc123" --seed-ratio 1.0 --seed-time 60
 
 # With authentication header
 risuko download https://example.com/private.zip -H "Authorization: Bearer token"
+
+# Resolving DNS over HTTPS (applies to the engine globally)
+risuko download https://example.com/file.zip \
+  --doh-url https://cloudflare-dns.com/dns-query --doh-bootstrap 1.1.1.1,1.0.0.1
 
 # From a .torrent file
 risuko download ./ubuntu-24.04.torrent -d ~/Downloads

@@ -22,6 +22,7 @@ The HTTP handler supports multi-threaded range-based downloads:
 - Falls back to a single-connection download when the file is below `min-split-size` or the server doesn't support ranges
 - Handles redirects, cookies, and custom headers
 - Supports proxy connections via the `all-proxy` option (`http://`, `socks5://`, `socks5h://`; `https://` proxies are not supported)
+- Optional DNS over HTTPS: when `doh-enable` + `doh-url` are set, hostnames resolve via RFC 8484 wire-format queries to the endpoint instead of the system resolver. Applied process-wide to every `risuko-http` client through a pluggable resolver hook, with an in-memory TTL cache and optional fallback to system DNS (`doh-fallback`)
 - Stalled-transfer watchdog: aborts a worker when the EMA stays below `lowest-speed-limit` for `lowest-speed-limit-timeout` (auto-retry restarts it when enabled)
 - Multi-URI tasks pick a mirror via `uri-selector` (`feedback` / `inorder` / `adaptive`)
 - Optional `.netrc` lookup for HTTP Basic auth when the URL has no embedded credentials (disabled with `no-netrc`)
@@ -37,10 +38,14 @@ The HTTP handler supports multi-threaded range-based downloads:
 | `lowest-speed-limit` | `0` | Stalled-transfer floor in bytes/s (`0` disables the watchdog) |
 | `lowest-speed-limit-timeout` | `30` | Seconds below the floor before the worker is aborted |
 | `uri-selector` | `feedback` | Mirror selection strategy: `feedback`, `inorder`, or `adaptive` |
-| `file-allocation` | `falloc` | Disk reservation strategy: `falloc`, `trunc`, or `none` |
+| `file-allocation` | `falloc` (`none` on Android) | Disk reservation strategy: `falloc`, `trunc`, or `none` |
 | `user-agent` | Chrome UA string | Custom user agent |
 | `header` | — | Custom HTTP headers |
 | `all-proxy` | — | Proxy URL (`http://`, `socks5://`, or `socks5h://`) |
+| `doh-enable` | `false` | Resolve DNS over HTTPS (needs `doh-url`); global, not per-task |
+| `doh-url` | — | DoH endpoint URL (`https://` only) |
+| `doh-bootstrap` | — | IPs for reaching the endpoint without system DNS |
+| `doh-fallback` | `true` | Fall back to system DNS when a DoH query fails |
 | `load-cookies` | — | Path to a Netscape/Mozilla `cookies.txt` |
 | `netrc-path` | `~/.netrc` | Override the `.netrc` file location |
 | `no-netrc` | `false` | Skip `.netrc` lookup |
@@ -56,9 +61,10 @@ Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri
 
 - Magnet link resolution (session fast-path for already-managed torrents, then tracker + DHT). Accepts both `xt=urn:btih:` (v1) and `xt=urn:btmh:` (v2 multihash) URNs; hybrid magnets carry both
 - `.torrent` file parsing via the bundled bencode decoder; supports v1, pure-v2, and hybrid metainfo (BEP 52 `meta version=2` with `file tree` and `piece layers`)
-- BEP-5 DHT for peer discovery, dual-stack (IPv4 + IPv6 via BEP-32) when an IPv6 socket can be bound. Pure-v2 swarms announce the leading 20 bytes of the SHA-256 info-hash on the v1 DHT/trackers per BEP 52
+- BEP-5 DHT for peer discovery, dual-stack (IPv4 + IPv6 via BEP-32) when an IPv6 socket can be bound; per-torrent continuous `get_peers` polling and `announce_peer` keep the peer supply live throughout the download session. Pure-v2 swarms announce the leading 20 bytes of the SHA-256 info-hash on the v1 DHT/trackers per BEP 52
 - BEP-14 Local Service Discovery (LSD) for peers on the same LAN
-- BEP-10 extension protocol with `ut_metadata` (BEP-9); the `ut_pex` extension id is advertised but BEP-11 peer ingest is not yet wired
+- BEP-10 extension protocol with `ut_metadata` (BEP-9) and full BEP-11 PEX (`ut_pex`): received peer-exchange messages are parsed and gossiped peers are fed into the dial channel
+- BEP-29 µTP (Micro Transport Protocol): outbound dials attempt TCP first and fall back to µTP when TCP is refused; inbound µTP connections are accepted on the same UDP port as the TCP listener
 - BEP-8 Message Stream Encryption (MSE/PE) with selectable `plaintext` / `prefer` / `require` policy
 - BEP-52 BitTorrent v2: SHA-256 Merkle piece-tree verification (16 KiB block leaves), reserved-bit `0x08` in handshake byte 7 advertises v2 capability, and the `HashRequest` / `Hashes` / `HashReject` wire messages exchange Merkle layer slices with sibling proofs
 - UPnP IGD port forwarding for the listener (TCP + UDP)

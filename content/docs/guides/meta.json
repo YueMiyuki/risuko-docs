@@ -9,6 +9,7 @@
     "task-routing",
     "completion-scripts",
     "cloud-uploads",
-    "health-checks"
+    "health-checks",
+    "browser-cookies"
   ]
 }

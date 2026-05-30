@@ -54,6 +54,7 @@ When a download fails, the error code and a human-readable message are stored on
 | 306 | Service Unavailable | HTTP 503 — The server is temporarily unavailable. |
 | 307 | Redirect Loop | Too many HTTP redirects were followed. |
 | 308 | Response Error | An unspecified HTTP response error. |
+| 315 | Cloudflare Challenge | Cloudflare bot-protection detected on a 403/503/429 response. Import browser cookies to bypass — see the [Browser Cookies guide](/docs/guides/browser-cookies). |
 
 ## File System Errors (4xx)
 
@@ -132,7 +133,7 @@ When a download fails, the error code and a human-readable message are stored on
 ### Common Fixes
 
 - **2xx Network errors**: Check your internet connection, firewall, and DNS settings.
-- **3xx HTTP errors**: Verify the download URL is correct and accessible in a browser.
+- **3xx HTTP errors**: Verify the download URL is correct and accessible in a browser. For error 315 (Cloudflare Challenge), use the [Browser Cookies guide](/docs/guides/browser-cookies) to import credentials from an installed browser.
 - **4xx File system errors**: Ensure the download directory exists and has write permissions.
 - **5xx Protocol errors**: Check protocol-specific settings (trackers, credentials, etc.).
 

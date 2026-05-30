@@ -107,6 +107,31 @@ await changeGlobalOption({
 | `netrc-path` | `~/.netrc` (`%USERPROFILE%\_netrc` on Windows) | Override the `.netrc` file used to inject HTTP Basic auth when a URL has no embedded credentials |
 | `no-netrc` | `false` | Skip `.netrc` lookup entirely |
 
+### DNS over HTTPS
+
+When enabled, hostnames are resolved by POSTing RFC 8484 wire-format queries
+(`application/dns-message`) to a DoH endpoint instead of using the system
+resolver. A and AAAA records are queried together and the answers cached in
+memory (smallest record TTL, clamped to 30–3600 s, plus a 5 s negative cache).
+
+This applies to every HTTP client in the engine — downloads, m3u8 segments,
+RSS, WebDAV/S3 uploads, BitTorrent HTTP trackers, and UPnP. It does **not**
+cover BitTorrent UDP trackers/DHT or FTP/SFTP/ED2K/ADC connections, which still
+resolve through the system. SOCKS5h proxies keep resolving names proxy-side.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `doh-enable` | `false` | Route DNS lookups over HTTPS. Only takes effect when `doh-url` is also set |
+| `doh-url` | — | DoH endpoint URL. Must be `https://` (e.g. `https://cloudflare-dns.com/dns-query`) |
+| `doh-bootstrap` | — | Comma/space/newline-separated IPs used to reach the endpoint host without a system-DNS lookup. Entries that don't parse as an IP are dropped. When empty, the endpoint host is resolved via the system resolver |
+| `doh-fallback` | `true` | When a DoH query fails (timeout, network error, SERVFAIL), fall back to the system resolver instead of failing the connection |
+| `doh-provider` | `cloudflare` | UI-only preference (`user.json`). The desktop app's provider dropdown (`cloudflare`, `google`, `quad9`, `custom`); selecting a preset fills `doh-url` and `doh-bootstrap` automatically. Not read by the engine |
+
+<Callout type="info">
+DoH settings are hot-reloaded — changing any `doh-*` key takes effect on the
+next connection without an engine restart.
+</Callout>
+
 ### Reliability
 
 | Key | Default | Description |
@@ -143,7 +168,7 @@ minutes warming up again. Tasks whose `kind` is not in
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `file-allocation` | `falloc` | Disk reservation strategy. `falloc` reserves real blocks via `fallocate(2)` (Linux) or `fcntl(F_PREALLOCATE)` (macOS), falling back to `set_len`. `trunc` only sets the file length. `none` lets writes grow the file as needed. The aria2 alias `prealloc` is accepted as a synonym for `falloc` |
+| `file-allocation` | `falloc` (`none` on Android) | Disk reservation strategy. `falloc` reserves real blocks via `fallocate(2)` (Linux) or `fcntl(F_PREALLOCATE)` (macOS), falling back to `set_len`. `trunc` only sets the file length. `none` lets writes grow the file as needed. The aria2 alias `prealloc` is accepted as a synonym for `falloc` |
 | `auto-file-renaming` | `true` | When the target output file already exists, append `.1`, `.2`, … instead of overwriting |
 | `remote-time` | `false` | Stamp the local file mtime from the server's `Last-Modified` header on completion (per-task) |
 | `use-remote-file-time` | — | UI/global preference mirrored into per-task `remote-time` when set |
@@ -166,6 +191,7 @@ minutes warming up again. Tasks whose `kind` is not in
 | `bt-encryption-policy` | `prefer` | MSE/PE policy: `plaintext`, `prefer`, or `require` (engine restart) |
 | `bt-listen-v6` | `false` | Also bind an IPv6 TCP listener on the same port (engine restart) |
 | `bt-create-subfolder` | `true` | When `true`, multi-file torrents and magnets are placed under `<dir>/<name>/`. When `false`, files are written directly into `dir`. Single-file torrents are unaffected. Read on each task add (no restart needed); accepted as a per-task option override |
+| `bt-save-metadata` | `true` | When `true` and a magnet link is added, the engine resolves the torrent metadata first and writes a synthesized `.torrent` file to the task's `dir` before starting the download. Has no effect when adding a `.torrent` file directly |
 
 The DHT (BEP-5) is always enabled and runs as a dual-stack client when an
 IPv6 socket can be bound. The BitTorrent listener uses an ephemeral port; the
@@ -247,6 +273,12 @@ are routed over JSON-RPC.
 | `external-engine-host` | — | Hostname or IP of the remote RPC server |
 | `external-engine-port` | `16800` | Port of the remote RPC server |
 | `external-engine-secret` | — | Token to send as `token:<secret>` on each call |
+
+### Logging
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `log-dir-override` | `""` | Override the directory where rolling log files are written. Must be an absolute path to a writable directory. When empty (the default), logs go to the OS-specific app log directory. Useful on Android to redirect logs to a publicly accessible path |
 
 ## Startup-only Keys
 

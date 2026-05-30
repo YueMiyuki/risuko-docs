@@ -1,0 +1,115 @@
+---
+title: Browser Cookies
+description: Bypass Cloudflare and other bot-protection challenges by importing cookies from an installed browser.
+---
+
+Some download hosts use Cloudflare bot-protection that blocks
+automated requests with a 403, 429, or 503 response. Risuko detects these
+responses and surfaces a dialog that lets you import cookies directly from
+an installed browser — no manual cookie export required.
+
+## How It Works
+
+When Risuko receives a response that carries Cloudflare headers (`cf-ray`,
+`server: cloudflare`, or `cf-mitigated: challenge`) on a 403/503/429 status,
+it raises [error code 315](/docs/reference/error-codes) and shows the
+**Cloudflare Challenge** dialog.
+
+The dialog lets you:
+
+1. Pick an installed browser (Chrome, Firefox, Edge, Brave, Arc, Safari, etc.)
+2. Preview which cookies will be imported for the blocked host
+3. Confirm the import and retry the download with those cookies and the
+   browser's User-Agent string
+
+Cookies are stored per-host in `browser_cookies.json` inside the app config
+directory and are automatically applied to future downloads from the same host
+(including subdomains).
+
+## Supported Browsers
+
+| Browser | macOS | Windows | Linux |
+|---------|-------|---------|-------|
+| Google Chrome | ✓ | ✓ | ✓ |
+| Chromium | ✓ | ✓ | ✓ |
+| Brave | ✓ | ✓ | ✓ |
+| Microsoft Edge | ✓ | ✓ | ✓ |
+| Vivaldi | ✓ | ✓ | ✓ |
+| Opera | ✓ | ✓ | ✓ |
+| Opera GX | ✓ | ✓ | — |
+| Arc | ✓ | — | — |
+| Firefox | ✓ | ✓ | ✓ |
+| LibreWolf | ✓ | ✓ | ✓ |
+| Zen | ✓ | ✓ | ✓ |
+| Safari | ✓ | — | — |
+| Cachy Browser | — | — | ✓ |
+
+Only browsers that are installed and have a readable profile appear as
+available in the picker. Browsers with a locked or missing profile show as
+unavailable.
+
+## Managing Saved Cookies
+
+Imported cookies are visible under **Preferences → Advanced → Saved domain
+credentials**. Each entry shows the host, the source browser, the number of
+cookies, and when it was last used.
+
+You can delete individual entries or clear all saved cookies from that panel.
+Entries are also evicted automatically when the store exceeds 200 hosts
+(oldest-last-used first).
+
+## Retrying a Blocked Download
+
+If a download is already in an error state with code 315, open the task
+context menu and choose **Retry with cookies**. The Cloudflare dialog
+re-opens so you can pick a browser and retry without re-adding the task.
+
+## Programmatic Access
+
+The cookie commands are exposed as Tauri IPC calls:
+
+```ts
+import { invoke } from "@tauri-apps/api/core";
+
+// List installed browsers and their availability
+const browsers = await invoke("list_browsers_cmd");
+// [{ id: "chrome", name: "Google Chrome", available: true, userAgent: "..." }, ...]
+
+// Import cookies for a URL from a specific browser
+const result = await invoke("import_browser_cookies", {
+  browser: "chrome",
+  url: "https://example.com/file.zip",
+  persist: true, // save to the cookie store (default: true)
+});
+// { host, userAgent, cookieHeader, count, hasCfClearance, cookieNames, cookies }
+
+// Retry a failed task with the saved cookies for its host
+await invoke("retry_with_cookies", {
+  gid: "abc123",
+  payload: {
+    cookie: "cf_clearance=...; other=value",
+    userAgent: "Mozilla/5.0 ...",
+  },
+});
+
+// List all saved cookie entries
+const entries = await invoke("list_cookie_entries");
+// [{ host, browserId, userAgent, cookieCount, importedAt, lastValidatedAt }]
+
+// Delete a saved entry
+await invoke("delete_cookie_entry", { host: "example.com" });
+
+// Clear all saved entries
+await invoke("clear_cookie_entries");
+```
+
+## Notes
+
+- Cookie values are stored in plaintext in `browser_cookies.json`. They are
+  never sent to Risuko servers — all cookie reads happen locally via the
+  [rookie](https://github.com/thewh1teagle/rookie) library.
+- The `cf_clearance` cookie has a short TTL (typically 30 minutes to a few
+  hours). If a previously working download starts failing again with error 315,
+  re-import cookies from the browser after visiting the site manually.
+- Cookies are matched by host and applied to subdomains. An entry for
+  `example.com` also covers `dl.example.com`.

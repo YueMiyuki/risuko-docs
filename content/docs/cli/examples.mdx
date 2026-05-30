@@ -25,6 +25,17 @@ risuko download https://example.com/archive.tar.gz -o my-archive.tar.gz
 risuko download https://example.com/file.zip --proxy http://proxy.corp.com:8080
 ```
 
+### With DNS over HTTPS
+
+```bash
+risuko download https://example.com/file.zip \
+  --doh-url https://cloudflare-dns.com/dns-query --doh-bootstrap 1.1.1.1,1.0.0.1
+```
+
+DoH is applied to the engine globally (via `changeGlobalOption`) before the
+download is added, so it covers every HTTP request the engine makes for the
+session, not just this task.
+
 ### With authentication
 
 ```bash
