@@ -3,7 +3,7 @@ title: BitTorrent Downloads
 description: Guide to downloading torrents with Risuko.
 ---
 
-Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri/risuko-bt), an in-tree BitTorrent engine that supports both BEP-3 (v1) and BEP-52 (v2) torrents, including hybrid torrents that carry both info-hashes.
+Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri/risuko-bt), an in-tree BitTorrent engine that supports both BEP-3 (v1) and BEP-52 (v2) torrents, including hybrid torrents that carry both info-hashes. Peer discovery uses dual-stack DHT (BEP-5/32), trackers (HTTP and UDP), LSD (BEP-14), and PEX (BEP-11), with µTP (BEP-29) fallback and BEP-55 hole punching for NATed peers.
 
 For v2 and hybrid torrents the task exposes an additional `infoHashV2` (SHA-256) field alongside `infoHash`, plus `metaVersion` (`v1`, `v2`, or `hybrid`).
 

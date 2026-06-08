@@ -64,6 +64,7 @@ Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri
 - BEP-5 DHT for peer discovery, dual-stack (IPv4 + IPv6 via BEP-32) when an IPv6 socket can be bound; per-torrent continuous `get_peers` polling and `announce_peer` keep the peer supply live throughout the download session. Pure-v2 swarms announce the leading 20 bytes of the SHA-256 info-hash on the v1 DHT/trackers per BEP 52
 - BEP-14 Local Service Discovery (LSD) for peers on the same LAN
 - BEP-10 extension protocol with `ut_metadata` (BEP-9) and full BEP-11 PEX (`ut_pex`): received peer-exchange messages are parsed and gossiped peers are fed into the dial channel
+- BEP-55 `ut_holepunch` NAT traversal: advertised in the extended handshake. When a direct dial to a PEX-gossiped peer fails, Risuko asks the relay that gossiped it to perform a rendezvous; as a relay it forwards `connect` messages so two NATed peers can simultaneously open a connection
 - BEP-29 µTP (Micro Transport Protocol): outbound dials attempt TCP first and fall back to µTP when TCP is refused; inbound µTP connections are accepted on the same UDP port as the TCP listener
 - BEP-8 Message Stream Encryption (MSE/PE) with selectable `plaintext` / `prefer` / `require` policy
 - BEP-52 BitTorrent v2: SHA-256 Merkle piece-tree verification (16 KiB block leaves), reserved-bit `0x08` in handshake byte 7 advertises v2 capability, and the `HashRequest` / `Hashes` / `HashReject` wire messages exchange Merkle layer slices with sibling proofs
