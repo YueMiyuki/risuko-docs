@@ -23,13 +23,18 @@ desktop app):
 | `completion-script-enabled` | `false` | Master switch |
 | `completion-script-command` | — | Absolute path to the executable |
 | `completion-script-args` | — | Whitespace-tokenised argument template with placeholders |
-| `completion-script-timeout-ms` | `30000` | Hard kill timeout (clamped to `1000`–`300000`) |
+| `completion-script-timeout-ms` | `30000` | Timeout before Risuko stops waiting (clamped to `1000`–`300000`) |
 
 The script is **executed directly**, not through a shell. Each whitespace-
 separated token in the args template becomes one argv entry, so quoting,
-shell expansions, and pipes are not interpreted. If you need shell
-features, point `completion-script-command` at `/bin/sh` (or `cmd.exe`)
-and pass `-c "your pipeline"` as the args.
+shell expansions, and pipes are not interpreted — a single argument can
+never contain whitespace. If you need shell features, wrap the pipeline in
+a dedicated shell script and point `completion-script-command` at it.
+
+The **Test script** button in the same pane runs the configured command
+once with sample values (`/tmp/risuko-test-file`, an all-zero hash,
+status `complete`) so you can validate it without waiting for a real
+download.
 
 ## Placeholders
 
@@ -38,32 +43,41 @@ Both the args template and the spawned environment expose:
 | Placeholder | Env var | Value |
 |-------------|---------|-------|
 | `{path}` | `RISUKO_PATH` | Final on-disk path of the completed file |
-| `{hash}` | `RISUKO_HASH` | Task GID |
-| `{status}` | `RISUKO_STATUS` | `complete`, `error`, or `cancelled` |
+| `{hash}` | `RISUKO_HASH` | BitTorrent info hash — empty for non-torrent tasks |
+| `{status}` | `RISUKO_STATUS` | `complete` or `error` |
 
 Placeholders are substituted inside each argv token after splitting, so
 `--file={path}` produces a single argument like `--file=/downloads/foo.zip`.
+`{path}` is substituted last, so placeholder-looking text inside the file
+path is never re-expanded.
 
 ## Per-Task Overrides
 
-Individual tasks can override any of the four settings via the
-`completionScriptOverrides` field accepted by the desktop app's task
-options. Notably:
+Individual tasks can override the global settings from the Add Task
+dialog's advanced options. The overrides are stored as task option keys —
+`risuko-completion-script-command`, `risuko-completion-script-args`,
+`risuko-completion-script-timeout-ms`, and
+`risuko-completion-script-enabled` — which the app reads back when the
+task finishes. Notably:
 
-- Setting `command` on a task implicitly enables the script for that task,
+- Setting a per-task command implicitly enables the script for that task,
   even when the global switch is off — unless the override also sets
-  `enabled: false` explicitly.
-- `enabled: false` always wins, useful for opting one noisy task out of
-  the global script.
-- `timeout_ms` overrides are clamped to the same `1000`–`300000` ms range.
+  `risuko-completion-script-enabled: false` explicitly.
+- `risuko-completion-script-enabled: false` always wins, useful for opting
+  one noisy task out of the global script. The Add Task dialog writes it
+  automatically when the override toggle is on but no command is given.
+- Timeout overrides are clamped to the same `1000`–`300000` ms range.
 
 ## Output Handling
 
-stdout and stderr are captured and written to the desktop app's log at
-`info` (success) or `warn` (non-zero exit / timeout) level. Each stream
-is truncated to **8 KiB** with a `...[truncated]` marker. Scripts that
-exceed `completion-script-timeout-ms` are killed and reported with
-`timed_out: true`.
+The run is fire-and-forget: it logs a one-line summary at `info` on
+success or `warn` on a non-zero exit, spawn failure, or timeout. The
+failure line includes the captured stderr; stdout is not logged. Both
+streams are captured and truncated to **8 KiB** with a `...[truncated]`
+marker — the **Test script** button returns the full captured stdout and
+stderr to the UI. Scripts that run past `completion-script-timeout-ms`
+are reported with `timed_out: true`; Risuko stops waiting for them but
+does not kill the process.
 
 ## Example: Notify via `terminal-notifier`
 
@@ -74,14 +88,19 @@ Args:    -title Risuko -subtitle {status} -message {path}
 
 ## Example: Move to a NAS via `rsync`
 
-```text
-Command: /bin/sh
-Args:    -c rsync\u00a0-a\u00a0{path}\u00a0/Volumes/nas/incoming/
+Because the args template cannot express an argument containing spaces,
+wrap the command in a small script:
+
+```bash
+#!/usr/bin/env bash
+# /usr/local/bin/risuko-to-nas.sh
+rsync -a "$RISUKO_PATH" /Volumes/nas/incoming/
 ```
 
-(Use a single token containing a real shell command if your args template
-needs spaces; the recommended approach is to wrap the pipeline in a
-dedicated shell script and call it directly.)
+```text
+Command: /usr/local/bin/risuko-to-nas.sh
+Args:    (leave empty — env vars carry the values)
+```
 
 ## Example: Conditional handling
 

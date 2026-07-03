@@ -9,6 +9,7 @@ import {
 import { z } from "zod";
 import { source } from "@/lib/source";
 import { Document, type DocumentData } from "flexsearch";
+import { ChatUIMessage, SearchTool } from "../../../components/ai/search";
 
 interface CustomDocument extends DocumentData {
   url: string;
@@ -16,16 +17,6 @@ interface CustomDocument extends DocumentData {
   description: string;
   content: string;
 }
-
-export type ChatUIMessage = UIMessage<
-  never,
-  {
-    client: {
-      location: string;
-    };
-  }
->;
-
 const searchServer = createSearchServer();
 
 async function createSearchServer() {
@@ -107,8 +98,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/chat">) {
   return result.toUIMessageStreamResponse();
 }
 
-export type SearchTool = typeof searchTool;
-
 const searchTool = tool({
   description: "Search the docs content and return raw JSON results.",
   inputSchema: z.object({
@@ -123,4 +112,4 @@ const searchTool = tool({
       enrich: true,
     });
   },
-});
+}) satisfies SearchTool;

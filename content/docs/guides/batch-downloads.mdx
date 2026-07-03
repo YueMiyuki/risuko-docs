@@ -16,17 +16,22 @@ https://example.com/another.zip
 
 - The directive is matched case-insensitively at the end of a line and
   separated from the URL by whitespace.
-- Filenames may contain spaces; path separators (`/`, `\`) are rejected and
-  the line is treated as a plain URL when one is present.
+- Filenames may contain spaces; path separators (`/`, `\`) are rejected —
+  the directive is stripped from the line and the URL is used without a
+  rename.
 - A per-line `Rename:` always wins over the form-level **Rename** field
   (which still supports the index expansion rule, e.g. `file-(01+1).zip`).
 - Magnet links and `.torrent` files are not affected by this directive
   (their output names come from the torrent metadata).
 
-`thunder://` links and `curl ...` paste-as-task lines are decoded first and
-the directive is applied to the resulting URL.
+For `thunder://` links and `curl ...` paste-as-task lines, the directive is
+parsed off the line first; the remaining link or command is decoded
+afterwards.
 
 ## CLI Batch Downloads
+
+Passing multiple URLs to a single `risuko download` does not batch: the URLs
+are treated as HTTP mirrors of one file. Run one `download` per file instead.
 
 ### From a URL List File
 
@@ -48,6 +53,11 @@ wait
 echo "All downloads complete"
 ```
 
+Start an engine before running downloads in parallel (the desktop app, or
+`risuko serve` in another terminal). When no engine is running, `download`
+starts a temporary in-process engine and shuts it down as soon as its own
+download finishes — killing any sibling downloads that attached to it.
+
 ### With JSON Scripting
 
 ```bash
@@ -61,12 +71,21 @@ wait
 risuko status --json | jq '.[] | {gid, status, name: .files[0].path}'
 ```
 
+### Managing a Batch
+
+```bash
+risuko global-stat   # overall speeds and active/waiting/stopped counts
+risuko pause-all
+risuko resume-all
+risuko purge         # clear completed/error/removed results
+```
+
 ## Node.js Batch Downloads
 
 ### Simple Batch
 
 ```js
-import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
+import { startEngine, addUri } from "@risuko/risuko-js";
 
 const urls = [
   "https://example.com/file1.zip",
@@ -100,10 +119,10 @@ const urls = Array.from({ length: 20 }, (_, i) =>
 );
 
 let completed = 0;
-onEvent((event) => {
-  if (event === "risuko.onDownloadComplete") {
+onEvent((eventName, gid) => {
+  if (eventName === "risuko.onDownloadComplete") {
     completed++;
-    console.log(`Progress: ${completed}/${urls.length}`);
+    console.log(`Progress: ${completed}/${urls.length} (${gid})`);
   }
 });
 
@@ -127,10 +146,15 @@ await changeGlobalOption({
 
 ## Global Speed Limiting via CLI
 
-```bash
-# Set global speed limit
-risuko config set max-overall-download-limit '"52428800"'  # 50 MB/s
+Engine-wide keys set from the CLI must go inside the `engine-overrides`
+object — `risuko config set` writes to the user config, and the engine only
+reads keys like `max-overall-download-limit` from there via
+`engine-overrides`. The value is picked up the next time the engine starts.
 
-# Set per-download connection count
-risuko config set split '"8"'
+```bash
+# Set global speed limit (K/M suffixes supported)
+risuko config set engine-overrides '{"max-overall-download-limit": "50M"}'
+
+# Connection count is per download (default 16)
+risuko download https://example.com/file.zip -t 8
 ```

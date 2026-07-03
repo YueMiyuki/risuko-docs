@@ -13,12 +13,16 @@ Risuko can run as a headless download server, accepting commands over JSON-RPC. 
 risuko serve --rpc-port 16800
 ```
 
+`serve` runs in the foreground until it receives Ctrl+C or an RPC `risuko.shutdown` request. `--rpc-port` defaults to `16800`; pass `-v`/`--verbose` for debug logging. There is no `--rpc-secret` flag — the server reads its secret from config (see [Remote Access](#remote-access)).
+
 ### Via Node.js
 
 ```js
-import { startEngine } from "@risuko/risuko-js";
+// @risuko/risuko-js is a CommonJS native addon, so import the default
+// export and read methods off it — named imports are not available
+import risuko from "@risuko/risuko-js";
 
-await startEngine({
+await risuko.startEngine({
   rpcPort: 16800,
   enableRpc: true,
 });
@@ -26,8 +30,7 @@ await startEngine({
 // Engine is now running and accepting RPC commands
 // Keep the process alive
 process.on("SIGINT", async () => {
-  const { stopEngine } = await import("@risuko/risuko-js");
-  await stopEngine();
+  await risuko.stopEngine();
   process.exit(0);
 });
 ```
@@ -61,6 +64,22 @@ curl -X POST http://localhost:16800/jsonrpc \
 
 You can also write a custom JSON-RPC client to talk to a remote server. The [RPC Protocol](/docs/architecture/rpc) page documents all available methods.
 
+## Remote Access
+
+The RPC server binds to `127.0.0.1` by default and only accepts local connections. To accept connections from other machines, set `rpc-host`:
+
+```bash
+risuko config set rpc-host 0.0.0.0
+```
+
+Once the server is reachable from the network, set an authentication secret. The engine reads `rpc-secret` from `system.json` in the config directory — `risuko config set` writes to `user.json`, which the engine ignores for this key, so edit the file directly:
+
+```json
+{ "rpc-secret": "choose-a-secret" }
+```
+
+CLI clients then pass `--rpc-secret <secret>`; raw JSON-RPC clients prepend `"token:<secret>"` to the `params` array (see [RPC Protocol](/docs/architecture/rpc)).
+
 ## Running as a systemd Service
 
 ```ini
@@ -92,13 +111,25 @@ FROM debian:bookworm-slim
 COPY risuko /usr/local/bin/risuko
 RUN chmod +x /usr/local/bin/risuko && mkdir -p /downloads
 
+ENV XDG_CONFIG_HOME=/config
 EXPOSE 16800
 VOLUME ["/downloads", "/config"]
 
 CMD ["risuko", "serve", "--rpc-port", "16800"]
 ```
 
+`XDG_CONFIG_HOME=/config` places the config directory at `/config/dev.risuko.app`. Create `system.json` there before starting the container: `rpc-host` must be `0.0.0.0` (the default `127.0.0.1` binds the container's loopback, so the published port would never reach the server) and `dir` points downloads at the volume. Missing keys are filled from defaults.
+
 ```bash
+mkdir -p /path/to/config/dev.risuko.app
+cat > /path/to/config/dev.risuko.app/system.json <<'EOF'
+{
+  "dir": "/downloads",
+  "rpc-host": "0.0.0.0",
+  "rpc-secret": "choose-a-secret"
+}
+EOF
+
 docker run -d \
   -p 16800:16800 \
   -v /path/to/downloads:/downloads \
@@ -108,7 +139,7 @@ docker run -d \
 
 ## Session Persistence
 
-The engine automatically saves session state periodically. When restarted:
+The engine automatically saves session state every 30 seconds and on shutdown. When restarted:
 
 - Completed downloads are remembered
 - Active downloads resume from where they left off

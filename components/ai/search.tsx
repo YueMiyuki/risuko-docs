@@ -22,10 +22,25 @@ import {
 import { cn } from "../../lib/cn";
 import { buttonVariants } from "../ui/button";
 import { useChat, type UseChatHelpers } from "@ai-sdk/react";
-import { DefaultChatTransport, type Tool, type UIToolInvocation } from "ai";
+import {
+  DefaultChatTransport,
+  type Tool,
+  type UIMessage,
+  type UIToolInvocation,
+} from "ai";
 import { Markdown } from "../markdown";
 import { Presence } from "@radix-ui/react-presence";
-import type { ChatUIMessage, SearchTool } from "../../app/api/chat/route";
+
+export type ChatUIMessage = UIMessage<
+  never,
+  {
+    client: {
+      location: string;
+    };
+  }
+>;
+
+export type SearchTool = Tool<{ query: string; limit: number }>;
 
 const Context = createContext<{
   open: boolean;
@@ -33,10 +48,7 @@ const Context = createContext<{
   chat: UseChatHelpers<ChatUIMessage>;
 } | null>(null);
 
-export function AISearchPanelHeader({
-  className,
-  ...props
-}: ComponentProps<"div">) {
+function AISearchPanelHeader({ className, ...props }: ComponentProps<"div">) {
   const { setOpen } = useAISearchContext();
 
   return (
@@ -72,7 +84,7 @@ export function AISearchPanelHeader({
   );
 }
 
-export function AISearchInputActions() {
+function AISearchInputActions() {
   const { messages, status, setMessages, regenerate } = useChatContext();
   const isLoading = status === "streaming";
 
@@ -114,7 +126,7 @@ export function AISearchInputActions() {
 }
 
 const StorageKeyInput = "__ai_search_input";
-export function AISearchInput(props: ComponentProps<"form">) {
+function AISearchInput(props: ComponentProps<"form">) {
   const { status, sendMessage, stop } = useChatContext();
   const [input, setInput] = useState(
     () => localStorage.getItem(StorageKeyInput) ?? "",
@@ -402,8 +414,10 @@ export function AISearchPanel() {
       </style>
       <Presence present={open}>
         <div
-          data-state={open ? "open" : "closed"}
-          className="fixed inset-0 z-30 backdrop-blur-xs bg-fd-overlay data-[state=open]:animate-fd-fade-in data-[state=closed]:animate-fd-fade-out lg:hidden"
+          className={cn(
+            "fixed inset-0 z-30 backdrop-blur-xs bg-fd-overlay lg:hidden",
+            open ? "animate-fd-fade-in" : "animate-fd-fade-out",
+          )}
           onClick={() => setOpen(false)}
         />
       </Presence>
@@ -434,7 +448,7 @@ export function AISearchPanel() {
   );
 }
 
-export function AISearchPanelList({
+function AISearchPanelList({
   className,
   style,
   ...props
@@ -476,7 +490,7 @@ export function AISearchPanelList({
   );
 }
 
-export function useHotKey() {
+function useHotKey() {
   const { open, setOpen } = useAISearchContext();
 
   const onKeyPress = useEffectEvent((e: KeyboardEvent) => {
@@ -497,7 +511,7 @@ export function useHotKey() {
   }, []);
 }
 
-export function useAISearchContext() {
+function useAISearchContext() {
   return use(Context)!;
 }
 

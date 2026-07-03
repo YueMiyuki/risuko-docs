@@ -5,7 +5,7 @@ description: Subscribe to download events from the Risuko engine.
 
 ## onEvent
 
-Register a callback to receive download events from the engine. The callback is invoked on a background thread via `ThreadsafeFunction`.
+Register a callback to receive download events from the engine. Events are forwarded from a background task via `ThreadsafeFunction`; the callback runs on the JavaScript thread and is scheduled in non-blocking mode.
 
 ```ts
 type EngineEventName =
@@ -18,8 +18,10 @@ type EngineEventName =
 
 function onEvent(
   callback: (eventName: EngineEventName, gid: string) => void
-): void;
+): Promise<void>;
 ```
+
+`onEvent` returns a Promise that rejects with `Engine not running` if the engine has not been started. Only one callback can be registered at a time: calling `onEvent` again replaces the previous callback, and there is no unsubscribe function. Each event carries only the event name and the gid — use `tellStatus(gid)` for anything else. If the callback falls behind the internal event buffer (256 events), older events are dropped.
 
 <Callout type="warn">
 Call `onEvent` after `startEngine` but before adding downloads to avoid missing events.
@@ -29,7 +31,7 @@ Call `onEvent` after `startEngine` but before adding downloads to avoid missing 
 
 ### risuko.onDownloadStart
 
-Fired when a download begins or resumes.
+Fired when a download is added or resumed (unpaused).
 
 ### risuko.onDownloadPause
 
@@ -37,7 +39,7 @@ Fired when a download is paused.
 
 ### risuko.onDownloadStop
 
-Fired when a download is stopped or removed.
+Fired when a download is removed with `remove(gid)`.
 
 ### risuko.onDownloadComplete
 
@@ -49,7 +51,7 @@ Fired when a download encounters an error. Use `tellStatus(gid)` to get the erro
 
 ### risuko.onBtDownloadComplete
 
-Fired when a BitTorrent download finishes downloading (but may still be seeding). This is distinct from `onDownloadComplete`, which fires after seeding is also done.
+Fired when a BitTorrent download finishes downloading (but may still be seeding). This is distinct from `onDownloadComplete`, which fires once seeding is also done — or immediately after this event if no seeding goal is configured.
 
 ## Examples
 
@@ -60,7 +62,7 @@ import { startEngine, addUri, onEvent } from "@risuko/risuko-js";
 
 await startEngine();
 
-onEvent((event, gid) => {
+await onEvent((event, gid) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${event} ${gid}`);
 });
@@ -75,22 +77,30 @@ import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
 
 await startEngine();
 
-function downloadAndWait(urls, options) {
-  return new Promise(async (resolve, reject) => {
-    const gid = await addUri(urls, options);
+// One shared listener: onEvent only supports a single callback,
+// so dispatch from it instead of registering per download
+const pending = new Map();
 
-    onEvent((event, eventGid) => {
-      if (eventGid !== gid) return;
+await onEvent((event, gid) => {
+  const waiter = pending.get(gid);
+  if (!waiter) return;
 
-      switch (event) {
-        case "risuko.onDownloadComplete":
-          resolve(gid);
-          break;
-        case "risuko.onDownloadError":
-          reject(new Error(`Download failed: ${gid}`));
-          break;
-      }
-    });
+  switch (event) {
+    case "risuko.onDownloadComplete":
+      pending.delete(gid);
+      waiter.resolve(gid);
+      break;
+    case "risuko.onDownloadError":
+      pending.delete(gid);
+      waiter.reject(new Error(`Download failed: ${gid}`));
+      break;
+  }
+});
+
+async function downloadAndWait(urls, options) {
+  const gid = await addUri(urls, options);
+  return new Promise((resolve, reject) => {
+    pending.set(gid, { resolve, reject });
   });
 }
 
@@ -105,7 +115,7 @@ import { startEngine, addUri, onEvent, tellStatus } from "@risuko/risuko-js";
 
 await startEngine();
 
-onEvent(async (event, gid) => {
+await onEvent(async (event, gid) => {
   if (event === "risuko.onDownloadError") {
     const status = await tellStatus(gid);
     console.error(`Download ${gid} failed:`);
@@ -118,7 +128,7 @@ onEvent(async (event, gid) => {
 ### Torrent seeding events
 
 ```js
-onEvent((event, gid) => {
+await onEvent((event, gid) => {
   if (event === "risuko.onBtDownloadComplete") {
     console.log(`Torrent ${gid} download complete, now seeding...`);
   }

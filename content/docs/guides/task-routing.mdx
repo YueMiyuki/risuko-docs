@@ -10,23 +10,27 @@ dedicated folders without configuring every task by hand.
 
 ## How a Task Is Routed
 
-When a new task is created, the engine inspects the URI to infer an output
-filename (the same logic that powers `out` defaulting). It then walks the
-configured rules:
+When a new task is created, the engine picks a filename hint — the task's
+`out` option if set, otherwise a name inferred from the URI (last path
+segment for HTTP/FTP, the filename embedded in an ed2k link, the playlist
+basename with a `.ts` extension for m3u8). Torrent and magnet tasks match
+against the placeholders `download.torrent` / `download.magnet`, and media
+tasks use an empty hint, so neither routes by content filename. The engine
+then walks the configured rules:
 
 1. **Custom routing rules** — the first **enabled** rule whose
    case-insensitive glob `pattern` matches the filename wins. The matching
    rule's `dir` becomes the download directory, and its `label` is exposed
    as the task's tag.
 2. **Legacy category fallback** — if no rule matches, the engine resolves
-   the filename to a built-in category (`video`, `audio`, `archive`,
-   `image`, `document`, `executable`) and looks it up in
+   the filename to a built-in category (`music`, `video`, `image`,
+   `document`, `compressed`, `program`) and looks it up in
    [`file-category-dirs`](/docs/configuration#storage).
 3. **Default** — falls back to the global `dir` setting.
 
-`{rule-dir, label}` and `{category-dir, category}` are returned with empty
-`dir` fields skipped (so a rule with no `dir` simply tags the task and lets
-the next layer pick the directory).
+A rule whose `dir` is empty after trimming is skipped even when its pattern
+matches — its label is not applied, and evaluation continues with the
+remaining rules and fallbacks.
 
 ## Rule Shape
 
@@ -36,7 +40,7 @@ Stored in the user config under [`task-routing-rules`](/docs/configuration#task-
 {
   "id": "rule-videos",
   "label": "Videos",
-  "pattern": "*.{mp4,mkv,webm,mov}",
+  "pattern": "*.mkv",
   "dir": "/Users/me/Downloads/Videos",
   "enabled": true
 }
@@ -44,18 +48,20 @@ Stored in the user config under [`task-routing-rules`](/docs/configuration#task-
 
 | Field | Description |
 |-------|-------------|
-| `id` | Stable identifier (assigned by the engine if omitted on add) |
+| `id` | Stable identifier (pass `""` on add and the engine assigns a UUID) |
 | `label` | Human-readable tag attached to matching tasks |
 | `pattern` | Case-insensitive glob (`glob` crate syntax). Matched against the **filename only**, not the URL or directory |
-| `dir` | Absolute directory; trimmed empty strings are ignored |
-| `enabled` | Set to `false` to keep the rule but skip it during evaluation |
+| `dir` | Absolute directory; a rule whose trimmed `dir` is empty is skipped |
+| `enabled` | Set to `false` to keep the rule but skip it during evaluation (defaults to `true` when omitted) |
+
+All fields except `enabled` are required when adding a rule over RPC.
 
 ## Managing Rules
 
 ### Desktop App
 
-Open **Preferences → Routing** to create, reorder, and toggle rules
-visually. Changes are persisted immediately.
+Open **Preferences → Basic → Task Routing Rules** to add, edit, toggle, and
+remove rules. Changes apply when the preferences form is saved.
 
 ### RPC
 
@@ -64,10 +70,18 @@ The same operations are exposed over JSON-RPC for headless setups:
 | Method | Description |
 |--------|-------------|
 | `risuko.listRoutingRules` | Return the current rule list |
-| `risuko.addRoutingRule` | Append a rule (the server fills in `id` if missing) |
+| `risuko.addRoutingRule` | Append a rule (send `"id": ""` and the server assigns a UUID) |
 | `risuko.updateRoutingRule` | Replace a rule by `id` |
 | `risuko.removeRoutingRule` | Delete a rule by `id` |
 | `risuko.resolveRouting` | Preview the `{ tag, dir }` decision for a given filename without creating a task |
+
+Each method is also reachable under the `aria2.` prefix. When `rpc-secret`
+is set, prepend `token:<secret>` as the first param.
+
+Rule changes made over RPC update the running engine only — they are not
+written back to `user.json`, so they are lost on restart. To persist rules,
+manage them from the desktop app or set `task-routing-rules` in the user
+config directly.
 
 ```bash
 curl -X POST http://localhost:16800/jsonrpc \
@@ -83,13 +97,15 @@ curl -X POST http://localhost:16800/jsonrpc \
 ## Glob Cheatsheet
 
 Patterns use the [`glob`](https://docs.rs/glob/) crate's syntax, matched
-case-insensitively against the basename:
+case-insensitively against the whole basename:
 
 | Pattern | Matches |
 |---------|---------|
 | `*.mkv` | Any `.mkv` file |
-| `*.{mp4,mkv,webm}` | Any of the listed extensions |
 | `*1080p*` | Filenames containing `1080p` (any case) |
-| `[Aa]nime - *.mkv` | Files starting with `Anime - ` or `anime - ` |
+| `*.s[0-9][0-9]e[0-9][0-9].*` | Episode-numbered releases like `show.S01E03.mkv` |
 
-Invalid patterns are skipped silently rather than aborting routing.
+Brace alternation (`*.{mp4,mkv}`) is **not** supported by the `glob` crate —
+create one rule per extension instead. Empty or whitespace-only patterns
+never match, and invalid patterns are skipped silently rather than aborting
+routing.

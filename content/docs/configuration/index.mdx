@@ -78,7 +78,7 @@ await changeGlobalOption({
 | `dir` | OS default | Default download directory |
 | `max-concurrent-downloads` | `5` | Maximum parallel download tasks |
 | `continue` | `true` | Resume interrupted downloads |
-| `purge-record-on-start` | `false` | When the engine starts, drop completed/stopped task records from the session. On-disk files for stopped torrent tasks are preserved (the librqbit orphan-purge step is told to keep files for those info-hashes); HTTP/FTP/etc. payloads on disk are never touched |
+| `purge-record-on-start` | `false` | When the engine starts, drop completed/stopped task records from the session. On-disk files for stopped torrent tasks are preserved (the orphan-purge step is told to keep files for those info-hashes); HTTP/FTP/etc. payloads on disk are never touched |
 
 ### Connection
 
@@ -92,8 +92,8 @@ await changeGlobalOption({
 | Key | Default | Description |
 |-----|---------|-------------|
 | `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, 0 = unlimited) |
-| `max-overall-upload-limit` | `0` | Global upload speed limit (bytes/s) |
-| `max-download-limit` | `0` | Per-task download speed limit |
+| `max-overall-upload-limit` | `0` | Legacy aria2 key. Accepted and persisted but not currently enforced by the engine; the only working upload cap is BitTorrent seeding via `bt-upload-rate-limit` |
+| `max-download-limit` | `0` | Per-task download speed limit (bytes/s, applies to HTTP, m3u8, and FTP workers) |
 
 ### HTTP
 
@@ -145,7 +145,7 @@ next connection without an engine restart.
 
 A separate watchdog from `lowest-speed-limit`. The renderer's `EngineClient`
 samples active task speeds, and any task whose `downloadSpeed` stays under
-`low-speed-threshold` for 3 consecutive polling ticks is force-paused and
+`low-speed-threshold` for 5 consecutive polling ticks is force-paused and
 resumed (with a 30-second per-task cooldown between recovery cycles).
 
 | Key | Default | Description |
@@ -155,12 +155,12 @@ resumed (with a 30-second per-task cooldown between recovery cycles).
 
 <Callout type="warn">
 Pause/resume only revives a single stalled TCP connection — useful for
-HTTP/HTTPS, FTP/SFTP, and HTTP-segment streams (`m3u8`, YouTube). Peer-swarm
-protocols (BitTorrent, ED2K, ADC, Gnutella, G2, giFT) are **explicitly
-excluded** from this recovery: pause tears down peer connections, aborts
-in-flight tracker announces and choke negotiations, and the swarm spends
-minutes warming up again. Tasks whose `kind` is not in
-`{http, ftp, youtube, m3u8}`, or whose `kind` is missing, are skipped.
+HTTP/HTTPS, FTP/SFTP, and HTTP-segment streams (`m3u8`, media/yt-dlp).
+Peer-swarm protocols (BitTorrent, ED2K, ADC, Gnutella, G2, giFT) are
+**explicitly excluded** from this recovery: pause tears down peer
+connections, aborts in-flight tracker announces and choke negotiations, and
+the swarm spends minutes warming up again. Tasks whose `kind` is not in
+`{http, ftp, media, m3u8}`, or whose `kind` is missing, are skipped.
 </Callout>
 
 
@@ -185,6 +185,7 @@ minutes warming up again. Tasks whose `kind` is not in
 | `bt-tracker` | — | Additional tracker URLs (comma-separated) |
 | `bt-max-peers-per-torrent` | `100` | Max concurrent peer connections per torrent (engine restart) |
 | `bt-max-outstanding-per-peer` | `128` | Max pipelined chunk requests per peer (engine restart) |
+| `bt-upload-rate-limit` | `0` | Seeding upload rate cap in bytes/s (0 = unlimited) (engine restart) |
 | `bt-enable-upnp` | `true` | Map the listen port on the router via UPnP IGD (engine restart) |
 | `bt-upnp-lease` | `300` | UPnP mapping lease in seconds (engine restart) |
 | `bt-enable-lsd` | `true` | BEP-14 Local Service Discovery via multicast (engine restart) |
@@ -238,7 +239,7 @@ Run a script after every download finishes (success or failure). Per-task overri
 |-----|---------|-------------|
 | `completion-script-enabled` | `false` | Master switch. When false, no script runs even if `command` is set |
 | `completion-script-command` | — | Absolute path to the executable to invoke (no shell parsing) |
-| `completion-script-args` | — | Whitespace-tokenised arguments template. Supported placeholders inside any token: `{path}` (final file path), `{hash}` (task GID), `{status}` (`complete` / `error` / `cancelled`). The same values are also exported as `RISUKO_PATH`, `RISUKO_HASH`, `RISUKO_STATUS` env vars |
+| `completion-script-args` | — | Whitespace-tokenised arguments template. Supported placeholders inside any token: `{path}` (final file path), `{hash}` (BitTorrent info hash; empty for non-torrent tasks), `{status}` (`complete` / `error`). The same values are also exported as `RISUKO_PATH`, `RISUKO_HASH`, `RISUKO_STATUS` env vars |
 | `completion-script-timeout-ms` | `30000` | Per-invocation timeout in milliseconds. Clamped to `1000`–`300000` (5 minutes). stdout/stderr captured into the log are truncated to 8 KiB |
 
 ### Saved Credentials
@@ -263,7 +264,7 @@ Run a script after every download finishes (success or failure). Per-task overri
 
 By default the desktop app boots an embedded engine in-process. Switch to
 **External Engine** mode to point the UI at a separately running
-`risuko-cli serve` (or any aria2-compatible RPC server). When enabled, the
+`risuko serve` (or any aria2-compatible RPC server). When enabled, the
 embedded engine is **not** started; all `add_uri`, polling, and config writes
 are routed over JSON-RPC.
 
@@ -289,7 +290,7 @@ until the engine is restarted (Quit & relaunch the desktop app, or restart
 
 `dht-listen-port`, `ed2k-port`, `listen-port`, `rpc-listen-port`,
 `rpc-secret`, `bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
-`bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
+`bt-upload-rate-limit`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
 `bt-encryption-policy`, `bt-listen-v6`.
 
 All other keys are hot-reloaded on the next task or polling cycle.

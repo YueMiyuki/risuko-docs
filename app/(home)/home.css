@@ -130,6 +130,16 @@
   animation: blink 1s step-end infinite;
 }
 
+/* Strict reduced motion: remove, don't tone down */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-fade-in,
+  .animate-pulse-glow,
+  .animate-blink {
+    animation: none;
+  }
+}
+
 .bg-grid {
   background-image:
     linear-gradient(to right, var(--border) 1px, transparent 1px),

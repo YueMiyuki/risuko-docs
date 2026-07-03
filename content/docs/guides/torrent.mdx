@@ -9,6 +9,10 @@ For v2 and hybrid torrents the task exposes an additional `infoHashV2` (SHA-256)
 
 ## Magnet Links
 
+Add a magnet link from the CLI, the desktop app, or the Node.js API. The CLI
+passes it to `risuko.addUri`, which sniffs the `magnet:` scheme and routes it
+to the torrent handler.
+
 ### CLI
 
 ```bash
@@ -52,7 +56,7 @@ To flatten multi-file torrents into the download directory, disable
 `bt-create-subfolder`:
 
 ```js
-await changeGlobalOption({ "bt-create-subfolder": "false" });
+await changeGlobalOption({ "bt-create-subfolder": false });
 ```
 
 ```bash
@@ -85,7 +89,7 @@ When `keep-seeding` is enabled, the `seed-time` and `seed-ratio` limits are igno
 Stop seeding when the upload/download ratio reaches a threshold:
 
 ```bash
-risuko download "magnet:?xt=..." --seed-ratio 1.0
+risuko download ./ubuntu.torrent --seed-ratio 1.0
 ```
 
 ```js
@@ -99,7 +103,7 @@ A ratio of `1.0` means upload the same amount as downloaded.
 Seed for a number of minutes after download completes:
 
 ```bash
-risuko download "magnet:?xt=..." --seed-time 60
+risuko download ./ubuntu.torrent --seed-time 60
 ```
 
 ```js

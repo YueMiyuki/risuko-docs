@@ -6,7 +6,7 @@ description: Automatically download new content from RSS feeds.
 Risuko can subscribe to RSS/Atom feeds and automatically download new items as they appear.
 
 > [!WARNING]
-> RSS feed management via CLI requires the standalone `risuko-cli` binary. The RSS RPC methods are not yet implemented in the engine's RPC server. RSS is not available through the Node.js API at this time.
+> The engine's RPC server does not implement the RSS methods yet, so the CLI `rss` subcommands below currently fail with "Method not found" against a running engine. RSS works today through the desktop app's RSS panel. RSS is not available through the Node.js API.
 
 ## Adding a Feed
 
@@ -18,7 +18,7 @@ risuko rss add "https://example.com/feed.xml"
 
 ### Node.js
 
-RSS management via the Node.js API is done through the RPC interface when the engine is running with RPC enabled.
+The Node.js API does not expose RSS management. Use the desktop app's RSS panel instead.
 
 ## Managing Feeds
 
@@ -42,31 +42,28 @@ Force an immediate refresh of all feeds:
 risuko rss refresh
 ```
 
-The engine also polls feeds periodically on a configurable interval.
+The engine also polls feeds periodically. Each feed has its own update interval (default 30 minutes, configurable per feed). A feed is deactivated after 5 consecutive fetch failures; re-activating it resets the error count.
 
 ### Remove a Feed
 
 ```bash
-# Get the feed ID from `rss list`
-risuko rss remove feed_abc123
+# Get the feed ID (a UUID) from `rss list`
+risuko rss remove 4f8a1b2c-9d3e-4f5a-8b6c-7d8e9f0a1b2c
 ```
 
 ## How It Works
 
 1. When a feed is added, the engine fetches it immediately
-2. New items are detected by comparing with previously seen entries
-3. Downloadable items (direct links, magnet links, torrent URLs) are queued automatically
+2. New items are detected by item ID — a SHA-256 hash of the entry's GUID (or its link when the GUID is missing)
+3. New items are matched against your rules; only items matching an active auto-download rule are grabbed (see [Rules](#rules)). Media items (enclosures, magnet links, torrent URLs) are queued as downloads; article items are saved as sanitized, self-contained HTML files with their inline media downloaded alongside
 4. Feed state is persisted via the `StorageBackend` trait
-5. Periodic polling checks for new items at configurable intervals
+5. Periodic polling checks each feed on its own interval; after a poll finds new items the engine emits an `rss-new-items` event with the new-item count
 
 ## Storage
 
-RSS feed data is stored using the `StorageBackend` trait:
+RSS feed data is stored under the `rss` storage key using the `StorageBackend` trait. The desktop app — currently the only host that runs the RSS manager — backs it with `tauri_plugin_store`.
 
-- **Desktop app**: Uses `tauri_plugin_store`
-- **CLI/Node.js**: Uses `FileStorage` (JSON files in the config directory)
-
-Feed state survives engine restarts. Previously downloaded items are not re-downloaded.
+Feed state survives engine restarts. Previously downloaded items are not re-downloaded. Each feed retains at most 500 items, and the episode download history used for deduplication caps at 10,000 records (oldest pruned first).
 
 ## Rules
 
@@ -87,13 +84,17 @@ Each rule supports the following knobs (`RssRule` in
 | `title_must`, `title_must_not` | Lists of `{ kind, value, case_sensitive }` patterns where `kind` is `contains`, `glob`, or `regex` |
 | `min_size_bytes`, `max_size_bytes`, `min_seeders` | Size / health gates |
 | `series_filter`, `seasons`, `episodes` | Series name match plus season list and an `episodes` selector (`all`, `from { start }`, `range { start, end }`, `specific { values }`) |
-| `quality_preferences`, `required_qualities`, `forbidden_qualities` | Tokens matched against the title parser's extracted quality tags (e.g. `1080p`, `HEVC`, `WEB-DL`) |
+| `quality_preferences`, `required_qualities`, `forbidden_qualities` | Tokens matched (case-insensitively) against the title parser's canonicalized quality tags (e.g. `1080p`, `x265`, `WEB-DL`, `HDR10` — note `HEVC`/`H.265` canonicalize to `x265`, `H.264`/`AVC` to `x264`) |
 | `upgrade_existing` | Re-download a previously-grabbed episode when a higher-ranked quality appears |
-| `download_dir`, `filename_template` | Per-rule output overrides; supports `{title}`, `{series}`, `{season}`, `{episode}`, `{quality}` placeholders |
-| `schedule`, `cooldown_secs` | Time-of-day / weekday window and minimum interval between matches |
+| `download_dir` | Per-rule download directory override |
+| `schedule`, `cooldown_secs` | Time-of-day / weekday window, and minimum time since the same episode was last downloaded before the rule fires again |
+
+Size bounds apply only when the feed reports an enclosure length, and
+`min_seeders` only when the title carries a seeder count (e.g. `[123S/45L]`).
 
 Title metadata (series, season, episode, quality, codec, group) is extracted
 by the parser in
 [`engine/rss/parser.rs`](https://github.com/YueMiyuki/Risuko/blob/master/src-tauri/risuko-engine/src/engine/rss/parser.rs)
 before rules run, so filters can address parsed fields directly without
-needing custom regex.
+needing custom regex. The desktop app can dry-run a rule against recent feed
+items before saving it.

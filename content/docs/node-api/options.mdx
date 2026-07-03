@@ -7,16 +7,17 @@ description: Read and modify engine and per-task options at runtime.
 
 ### getOption
 
-Get the options for a specific download task.
+Get the options for a specific download task. Returns only the keys set on the task itself (at add time or via `changeOption`); global options are not merged in.
 
 ```ts
 function getOption(gid: string): Promise<Record<string, unknown>>;
 ```
 
 ```js
+const gid = await addUri(["https://example.com/file.zip"], { split: "8" });
 const options = await getOption(gid);
-console.log(options.dir);     // Download directory
-console.log(options.split);   // Number of connections
+console.log(options.split);   // "8"
+console.log(options.dir);     // undefined unless set per-task
 ```
 
 ### changeOption
@@ -31,20 +32,19 @@ function changeOption(
 ```
 
 ```js
-// Limit download speed to 1 MB/s
-await changeOption(gid, { "max-download-limit": "1048576" });
+// Stop a seeding torrent immediately
+await changeOption(gid, { "seed-time": "0" });
 ```
 
 ### Changeable Options
 
-`changeOption` merges the provided keys into the task's option map, so any key can be stored. Only a subset is consumed live by the engine:
+`changeOption` merges the provided keys into the task's option map, so any key can be stored. Only `seed-time` is acted on immediately:
 
 | Key | Effect on a running task |
 |-----|--------------------------|
-| `max-download-limit` | Updates the per-task download speed limit on the next tick (bytes/sec, `"0"` for unlimited) |
-| `max-upload-limit` | Updates the per-torrent upload speed limit (BitTorrent) |
-| `seed-time` | Setting to `"0"` while a torrent is seeding (and `seed-ratio` is also `0` or absent) stops seeding immediately and emits `risuko.onDownloadComplete` |
-| `seed-ratio` | Same stop-on-zero behaviour as `seed-time`; otherwise re-evaluated by the seeding loop |
+| `seed-time` | Setting to `"0"` while a torrent is seeding (and the effective `seed-ratio` is `0` or absent) stops seeding immediately and emits `risuko.onDownloadComplete` |
+| `seed-ratio` | Consulted only as the guard for the `seed-time` stop above; the seeding goals themselves are read from global options each tick |
+| `max-download-limit` | Stored on the task; the per-task speed limiter is built when a worker starts, so the new limit applies the next time the task is restarted (e.g. `pause` then `unpause`) |
 
 Other options are stored on the task and used the next time a relevant action runs (for example, `dir`/`out` when the task is restarted).
 
@@ -84,15 +84,17 @@ await changeGlobalOption({ "max-overall-download-limit": "10485760" });
 
 ### Global Option Reference
 
-Defaults come from `system_defaults()` in `src-tauri/risuko-engine/src/config/defaults.rs` and are stored as JSON numbers/strings; `changeGlobalOption` accepts either form.
+Defaults come from `src-tauri/risuko-engine/src/config/defaults.rs` and are stored as JSON numbers/strings; `changeGlobalOption` accepts either form. Speed-limit values also accept `K` (×1024) and `M` (×1048576) suffixes, e.g. `"512K"` or `"10M"`.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `dir` | OS Downloads dir | Default download directory |
 | `max-concurrent-downloads` | `5` | Maximum number of parallel downloads |
 | `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, `0` = unlimited; updates the `SpeedLimiter` immediately) |
-| `max-overall-upload-limit` | `0` | Global upload speed limit (bytes/s) |
 | `split` | `16` | Default number of HTTP connections for new downloads |
+| `seed-ratio` | `0` | Stop seeding once the upload/download ratio reaches this value (`0` = no ratio goal; checked every second) |
+| `seed-time` | `0` | Stop seeding after this many minutes (`0` = no time goal) |
+| `keep-seeding` | `false` | Seed until stopped manually, ignoring `seed-ratio`/`seed-time` |
 | `user-agent` | Chrome UA string | Default user agent string |
 | `all-proxy` | `""` | Default proxy URL |
 | `doh-enable` | `false` | Resolve DNS over HTTPS (only active when `doh-url` is set). Hot-reloaded when any `doh-*` key changes |
@@ -100,3 +102,5 @@ Defaults come from `system_defaults()` in `src-tauri/risuko-engine/src/config/de
 | `doh-bootstrap` | `""` | Comma/space/newline-separated IPs for reaching the endpoint host without system DNS |
 | `doh-fallback` | `true` | Fall back to the system resolver when a DoH query fails |
 | `rpc-listen-port` | `16800` | RPC server port (read at `startEngine` only) |
+
+`rpc-listen-port`, `rpc-secret`, `listen-port`, `dht-listen-port`, `ed2k-port`, and most `bt-*` keys are read once at `startEngine`; changing them with `changeGlobalOption` has no effect until the engine is restarted.

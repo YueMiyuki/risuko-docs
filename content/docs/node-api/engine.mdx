@@ -41,7 +41,7 @@ await startEngine({
 ```
 
 <Callout type="warn">
-Only one engine instance can run per process. Calling `startEngine` when the engine is already running throws an error.
+Only one engine instance can run per process. Calling `startEngine` when the engine is already running rejects with an `Engine already running` error.
 </Callout>
 
 ### What Happens on Start
@@ -50,13 +50,13 @@ Only one engine instance can run per process. Calling `startEngine` when the eng
 2. `system.json` and `user.json` config files are loaded (or defaults created)
 3. The download directory is created
 4. The task manager is initialized
-5. Session is restored (previously active downloads resume)
+5. Session is restored (torrents resume automatically; other previously active downloads are restored as paused)
 6. The RPC server is started (if `enableRpc` is true)
-7. Event broadcasting and auto-save tasks begin
+7. Background tasks begin: progress updates every second, session auto-save every 30 seconds
 
 ## stopEngine
 
-Gracefully shut down the engine. Saves the current session and stops all running tasks.
+Gracefully shut down the engine. Cancels all running downloads, saves the current session, and stops the RPC server and background tasks. Rejects with `Engine not running` if the engine is not started — as does every other API function.
 
 ```ts
 function stopEngine(): Promise<void>;
@@ -72,7 +72,7 @@ await stopEngine();
 
 ### saveSession
 
-Persist the current download session to disk. The session is also auto-saved periodically.
+Persist the current download session to disk. The session is also auto-saved every 30 seconds.
 
 ```ts
 function saveSession(): Promise<void>;
@@ -88,7 +88,7 @@ function purgeDownloadResult(): Promise<void>;
 
 ### removeDownloadResult
 
-Remove a specific download result by GID.
+Remove a specific download result by GID. Rejects if the GID is unknown or the download is not stopped. Files on disk are kept.
 
 ```ts
 function removeDownloadResult(gid: string): Promise<void>;

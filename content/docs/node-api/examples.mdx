@@ -3,20 +3,16 @@ title: Node.js Examples
 description: Complete examples demonstrating common risuko-js patterns.
 ---
 
+`@risuko/risuko-js` is a CommonJS package, so ESM code imports the default export and destructures the functions from it — named imports fail with a `SyntaxError` in plain Node.
+
 ## Download Manager Script
 
 A complete download manager that monitors progress and handles events:
 
 ```js
-import {
-  startEngine,
-  addUri,
-  tellStatus,
-  tellActive,
-  getGlobalStat,
-  onEvent,
-  stopEngine,
-} from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, addUri, getGlobalStat, onEvent, stopEngine } = risuko;
 
 async function main() {
   await startEngine({ rpcPort: 16800 });
@@ -80,7 +76,9 @@ Embed Risuko in an Electron app:
 ```js
 // main.js (Electron main process)
 import { app, ipcMain } from "electron";
-import { startEngine, addUri, tellStatus, onEvent, stopEngine } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, addUri, tellStatus, onEvent, stopEngine } = risuko;
 
 app.whenReady().then(async () => {
   await startEngine({
@@ -114,7 +112,9 @@ Expose a download API over HTTP:
 
 ```js
 import express from "express";
-import {
+import risuko from "@risuko/risuko-js";
+
+const {
   startEngine,
   addUri,
   tellStatus,
@@ -123,7 +123,7 @@ import {
   unpause,
   remove,
   stopEngine,
-} from "@risuko/risuko-js";
+} = risuko;
 
 const app = express();
 app.use(express.json());
@@ -175,13 +175,14 @@ process.on("SIGINT", async () => {
 ## Batch Downloader with Concurrency Control
 
 ```js
-import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, addUri, changeGlobalOption, onEvent, stopEngine } = risuko;
 
 async function batchDownload(urls, { concurrency = 3, dir = "/downloads" } = {}) {
   await startEngine();
 
   // Limit concurrency via global option
-  const { changeGlobalOption } = await import("@risuko/risuko-js");
   await changeGlobalOption({ "max-concurrent-downloads": String(concurrency) });
 
   const results = new Map();

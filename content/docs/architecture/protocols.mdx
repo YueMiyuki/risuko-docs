@@ -12,7 +12,7 @@ Risuko's engine includes specialized handlers for each supported protocol. Each 
 The HTTP handler supports multi-threaded range-based downloads:
 
 - Sends a `GET` request with `Range: bytes=0-0` to probe file size and range support
-- Divides the file into 1 MiB **pieces** when at least `min-split-size` bytes; spawns N **worker tasks** (configurable via `split`, like aria2's `-s`/`-x`) that pull pieces from a shared lock-free queue
+- Divides the file into 1 MiB **pieces** when it is larger than `min-split-size × split`; spawns N **worker tasks** (configurable via `split`, like aria2's `-s`/`-x`) that pull pieces from a shared lock-free queue
 - Work-stealing is inherent: any idle worker claims the next free piece, so a slow connection never holds back the rest of the download
 - Resume granularity is per-piece (≤1 MiB lost on `SIGKILL`): each piece tracks an `AtomicU32` byte counter that the writer increments per flushed `Bytes`, and a sidecar JSON snapshot is persisted every 2 s
 - Downloads use HTTP `Range` headers; workers are pinned to HTTP/1.1 to keep each piece on its own TCP connection
@@ -39,7 +39,7 @@ The HTTP handler supports multi-threaded range-based downloads:
 | `lowest-speed-limit-timeout` | `30` | Seconds below the floor before the worker is aborted |
 | `uri-selector` | `feedback` | Mirror selection strategy: `feedback`, `inorder`, or `adaptive` |
 | `file-allocation` | `falloc` (`none` on Android) | Disk reservation strategy: `falloc`, `trunc`, or `none` |
-| `user-agent` | Chrome UA string | Custom user agent |
+| `user-agent` | `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36` | Custom user agent |
 | `header` | — | Custom HTTP headers |
 | `all-proxy` | — | Proxy URL (`http://`, `socks5://`, or `socks5h://`) |
 | `doh-enable` | `false` | Resolve DNS over HTTPS (needs `doh-url`); global, not per-task |
@@ -68,14 +68,14 @@ Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri
 - BEP-29 µTP (Micro Transport Protocol): outbound dials attempt TCP first and fall back to µTP when TCP is refused; inbound µTP connections are accepted on the same UDP port as the TCP listener
 - BEP-8 Message Stream Encryption (MSE/PE) with selectable `plaintext` / `prefer` / `require` policy
 - BEP-52 BitTorrent v2: SHA-256 Merkle piece-tree verification (16 KiB block leaves), reserved-bit `0x08` in handshake byte 7 advertises v2 capability, and the `HashRequest` / `Hashes` / `HashReject` wire messages exchange Merkle layer slices with sibling proofs
-- UPnP IGD port forwarding for the listener (TCP + UDP)
+- UPnP IGD port forwarding for the TCP listener only (the µTP UDP port and IPv6 are not mapped)
 - Rarest-first piece selection with endgame mode; SHA-1 (v1) or SHA-256 Merkle root (v2) verification off the async runtime
 - HTTP/HTTPS (BEP-23 compact) and UDP (BEP-15) trackers
 - Configurable seeding (ratio, time, or keep-seeding), upload speed limiting
 - Tunable per-peer request pipeline and per-torrent peer cap
 
 <Callout type="info">
-Pure-v2 magnet links without embedded `piece layers` are not yet supported (the metadata exchange only resolves v1/hybrid info dicts). Hybrid magnets and pure-v2 `.torrent` files work.
+Pure-v2 magnet links resolve by fetching the BEP 52 `piece layers` from peers over `HASH_REQUEST` after the info dict. If no peer serves those layers, resolution fails with `piece layers unavailable`. Hybrid magnets fall back to the v1 info dict when layers are missing but a `btih` hash is present.
 </Callout>
 
 ### Key Options
@@ -85,7 +85,7 @@ Pure-v2 magnet links without embedded `piece layers` are not yet supported (the 
 | `seed-ratio` | Stop seeding after this upload/download ratio |
 | `seed-time` | Stop seeding after this many minutes |
 | `keep-seeding` | Seed until manually stopped (overrides `seed-time` / `seed-ratio`) |
-| `max-upload-limit` | Upload speed limit (bytes/s) |
+| `bt-upload-rate-limit` | Upload speed limit (bytes/s, `0` = unlimited); there is no BT download-rate limit |
 | `bt-tracker` | Additional tracker URLs |
 | `bt-max-peers-per-torrent` | Max concurrent peer connections per torrent (default `100`) |
 | `bt-max-outstanding-per-peer` | Max pipelined chunk requests per peer (default `128`) |
@@ -109,7 +109,14 @@ After a torrent download completes, seeding behavior depends on the seed options
 
 **Module**: `engine/ed2k/`
 
-Supports the eDonkey2000 protocol for downloading files using `ed2k://` links.
+Downloads files by known hash using `ed2k://|file|…` links (server links are rejected). Sources come from `OP_GET_SOURCES` on the configured servers plus any `sources,` entries in the link; only high-ID sources are used. Download only — no keyword search, no sharing/upload, no Kad DHT, and no encryption. Files over 4 GiB are rejected (the 64-bit large-file extension is not implemented), and downloaded data is not hash-verified.
+
+### Key Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `ed2k-server` | `176.123.5.89:4725, 45.82.80.155:5687, 85.239.33.123:4232, 91.208.162.87:4232, 145.239.2.134:4661` | Comma-separated `ip:port` server list. Ships seeded with the five servers shown; falls back to a built-in list only if set empty |
+| `ed2k-port` | `4662` | Local client TCP port |
 
 ## M3U8/HLS
 
@@ -117,10 +124,11 @@ Supports the eDonkey2000 protocol for downloading files using `ed2k://` links.
 
 Downloads HTTP Live Streaming content:
 
-- Parses M3U8 playlist files
-- Downloads all segments in parallel
-- Concatenates segments into the final file
-- Supports both live and VOD playlists
+- Parses master and media M3U8 playlists (highest-bandwidth variant selected from a master playlist)
+- Downloads segments concurrently (bounded by `split`, default 5) with per-segment retry and a resume-progress sidecar
+- Decrypts AES-128-CBC segments (`EXT-X-KEY`); SAMPLE-AES and other methods are written through undecrypted
+- Concatenates segments into a single `.ts`, optionally remuxing to MP4 via `ffmpeg` when `m3u8-output-format` is `mp4`
+- VOD only — live playlists (no `#EXT-X-ENDLIST`) are rejected
 
 ## FTP/SFTP
 
@@ -131,50 +139,51 @@ File Transfer Protocol handler:
 - FTP with optional implicit-TLS encryption (FTPS)
 - SFTP (SSH File Transfer Protocol) via `russh` + `russh-sftp`
 - Server host keys pinned on first use (TOFU) via `engine/ssh_known_hosts.rs`; subsequent fingerprint mismatches are refused. The same store is shared with the SFTP upload sink so trust state stays consistent across download and upload paths
-- Passive mode support
-- Directory listing and file download
+- Resume from an existing `.part` via FTP `REST` or SFTP positional reads; single file per task (no directory listing or multi-file transfer)
+- FTPS certificate verification on by default (`check-certificate`); SFTP auth accepts a password or a PEM private key (`sftp-private-key`)
 
-## YouTube (yt-dlp)
+## Media (yt-dlp)
 
-**Module**: `engine/youtube.rs`
+**Module**: `engine/media.rs`
 
-Delegates extraction and download to a bundled `yt-dlp` child process. Recognises any URL `engine::youtube::is_youtube_uri` matches (YouTube, plus the broader extractor list yt-dlp supports). The handler:
+Delegates extraction and download to an external `yt-dlp` process resolved from `PATH` (not bundled; `check_yt_dlp_available` runs `yt-dlp --version` first). Routing uses `engine::media::is_media_uri`, an allowlist of ~26 host suffixes (YouTube, Vimeo, Twitch, Bilibili, SoundCloud, TikTok, and others); the `force-ytdlp` option forces any URL through yt-dlp. The handler:
 
-- Probes the URL with `yt-dlp -J` to fetch a JSON video info object (title, duration, formats), exposed via the Tauri command `get_youtube_video_info`
+- Probes the URL with `yt-dlp --dump-json --no-playlist --flat-playlist` to fetch a JSON info object (title, duration, formats), exposed via the Tauri command `get_media_info`
 - Spawns `yt-dlp` with `--newline --progress-template` and parses progress lines into the same atomic counters used by HTTP/BT, so the regular speed/progress UI works
-- Honours the `youtube-format` user option (yt-dlp format selector, e.g. `bestvideo+bestaudio/best`)
-- Watches yt-dlp's `Destination:` and `before_dl` lines to learn the resolved output filename
-- Forwards `all-proxy` to yt-dlp's `--proxy`
+- Picks the format selector from the `media-format` option (falling back to `youtube-format`, then `yt-format`); merges via `ffmpeg` when it is on `PATH`
+- Watches yt-dlp's `before_dl` / `after_move` / `Destination:` lines to learn the resolved output filename
+- Forwards proxy, user-agent, referer, and cookies (`all-proxy`/`proxy`, `user-agent`, `referer`, `cookies` file or `cookie` header)
+- For YouTube URLs adds `--extractor-args youtube:player_client=web,default`
 
-Routed automatically by `add_uri` whenever `is_youtube_uri` matches; the dedicated `add_youtube` Tauri command and `risuko.addYouTube` RPC method bypass detection.
+Routed automatically by `add_uri` whenever `is_media_uri` matches; the dedicated `add_media` Tauri command and `risuko.addMedia` RPC method bypass detection.
 
 ## ADC / Direct Connect (NMDC + ADC dialects)
 
 **Module**: `engine/adc/`
 
-Schemes: `adc://`, `adcs://` (TLS), `dchub://`, `nmdc://`. Default port `411` (ADC), `412` (ADCS). Two dialects share the same module:
+Schemes: `adc://`, `adcs://` (parsed as a TLS flag), `dchub://`, `nmdc://`. Default port `411` (ADC), `412` (ADCS). Direct file URIs of the form `dchub://hub.host[:port]/?TTH=<base32>&xl=<bytes>&dn=<name>` carry the TTH hash, file size and display name.
 
-- **NMDC** — line-oriented `$Lock`/`$Key`, `$MyINFO`, `$Search`, `$SR`, `$ADCGET` text protocol used by the legacy DC++ network
-- **ADC** — binary-tagged frame protocol (`CSUP`, `BINF`, `BGET`, `BRES`)
+The transfer implementation (NMDC `$Lock`/`$Key`/`$ADCGET`, the ADC framed protocol, and TTH/Tiger hashing) was removed. The handler now only parses the URI: it validates the scheme, requires a TTH and non-zero `xl`, stores the size, then returns `no source has the requested file` without any network I/O. Risuko runs passive-only with no listening socket, so `$ConnectToMe` / ADC `CTM` can never complete. `adcs://` TLS is not implemented.
 
-Direct file URIs of the form `dchub://hub.host[:port]/?TTH=<base32>&xl=<bytes>&dn=<name>` carry the TTH hash, file size and display name. The handler connects to the hub, queries for a peer holding that TTH, then transfers the file via `$ADCGET file …` (NMDC) or `CGET file …` (ADC).
+<Callout type="warning">
+ADC / Direct Connect (both NMDC and ADC dialects) parses URIs but cannot download. No handshake, search, transfer, or encryption exists in the current build.
+</Callout>
 
 ## Gnutella 0.6
 
 **Module**: `engine/gnutella/`
 
-URI scheme: `gnutella://host[:port]/uri-res/N2R?urn:sha1:<base32>` (also `gnet://`). Default port `6346`. The handler:
+URI scheme: `gnutella://host[:port]/uri-res/N2R?urn:sha1:<base32>` (also `gnet://`). Default port `6346`. The Gnutella wire protocol itself is not implemented — there is no `GNUTELLA CONNECT/0.6` handshake, no GWebCache discovery, and no `PING`/`QUERY`/`QUERYHIT`. The handler:
 
-- Bootstraps via GWebCache HTTP discovery to find ultrapeers (`gnutella-cache` option)
-- Performs the `GNUTELLA CONNECT/0.6` three-step handshake
-- Speaks the 23-byte binary descriptor header (16-byte GUID + type/TTL/hops/payload-length) with `PING` / `QUERY` / `QUERYHIT`
-- Downloads via HTTP/1.1 from the holding peer with `X-Gnutella-Content-URN` header
+- Connects directly to the host in the URI and issues an HTTP/1.1 `GET /uri-res/N2R?<urn>` with an `X-Gnutella-Content-URN` header (`User-Agent: Risuko/0.1`)
+- Accepts only `200` or `206`, requires a `Content-Length` (no chunked encoding), and checks it is within 4 KiB of the `xl=` size hint
+- Streams the single source to disk with no range resume and no SHA-1 verification (the URN is only a request key)
 
 ## Gnutella2 (G2)
 
 **Module**: `engine/g2/`
 
-URI scheme: `g2://host[:port]/sha1/<base32>?xl=<bytes>&dn=<name>`. Default port `6346`. Reuses the Gnutella HTTP `uri-res/N2R` peer fetch path since both networks serve content over the same peer-to-peer HTTP/1.1 endpoint. Bootstrap caches are configured via `g2-cache`.
+URI scheme: `g2://host[:port]/sha1/<base32>?xl=<bytes>&dn=<name>`. Default port `6346`. No G2 wire protocol is implemented; `run_g2_download` reuses the Gnutella `fetch_by_urn` path with a hardcoded `/uri-res/N2R` route since both networks serve content over the same peer-to-peer HTTP/1.1 endpoint. Same single-source fetch, length tolerance, and lack of hash verification as Gnutella.
 
 ## giFT IPC bridge
 
@@ -183,7 +192,7 @@ URI scheme: `g2://host[:port]/sha1/<base32>?xl=<bytes>&dn=<name>`. Default port 
 URI scheme: `gift://<inner-uri>`. Off by default. When `gift-enabled` is `true`, the handler connects to a locally-running `giftd` daemon (default `127.0.0.1:1213`, override with `gift-host` / `gift-port`) over its line-oriented IPC socket and forwards the inner URI verbatim. Status is parsed from `TRANSFER STATUS id=… total=… done=… state=active|complete|...` lines so progress bars work like any other transfer. Cancelling the task issues a `TRANSFER REMOVE id=…` to giftd.
 
 <Callout type="info">
-The legacy P2P stacks (ADC/Direct Connect, Gnutella, G2, giFT) are best-effort and depend on the public network still being reachable. They share the engine's progress/cancel/auto-retry plumbing but bypass the multi-threaded HTTP downloader.
+The legacy P2P stacks (ADC/Direct Connect, Gnutella, G2, giFT) are best-effort and depend on the public network still being reachable. They share the engine's progress/cancel/auto-retry plumbing but bypass the multi-threaded HTTP downloader. ADC/Direct Connect currently only parses URIs and cannot transfer; giFT is off unless a local `giftd` is running and `gift-enabled` is set.
 </Callout>
 
 ## RSS
@@ -234,14 +243,14 @@ The Tauri `add_uri` command and the desktop **Add Task** modal sniff the URI sch
 |----------|---------------|-----------|-----------------|-----|
 | HTTP/HTTPS | `http(s)://` | `risuko.addUri` | `addUri` | `risuko download <url>` |
 | BitTorrent (.torrent) | — (file path) | `risuko.addTorrent` | `addTorrent` | `risuko download <file.torrent>` (auto-detected) |
-| BitTorrent (magnet) | `magnet:` | `risuko.addUri` (sniffed) | `addMagnet` | Passed to `addUri` |
+| BitTorrent (magnet) | `magnet:` | `risuko.addUri` (sniffed) | `addMagnet` | `risuko download <magnet>` |
 | ED2K | `ed2k://` | `risuko.addEd2k` | `addEd2k` | — |
 | M3U8/HLS | `*.m3u8`, `*.m3u` | `risuko.addUri` (sniffed) | `addM3u8` | — |
 | FTP/SFTP | `ftp(s)://`, `sftp://` | `risuko.addUri` (sniffed) | `addFtp` | — |
-| YouTube (yt-dlp) | YouTube + yt-dlp extractors | `risuko.addYouTube` | `addYouTube` | — |
+| Media (yt-dlp) | media host allowlist (~26 sites) | `risuko.addMedia` | — | `risuko download <url>` |
 | ADC / Direct Connect | `adc(s)://`, `dchub://`, `nmdc://` | `risuko.addUri` (sniffed) | — | — |
 | Gnutella 0.6 | `gnutella://`, `gnet://` | `risuko.addUri` (sniffed) | — | — |
 | Gnutella2 (G2) | `g2://` | `risuko.addUri` (sniffed) | — | — |
 | giFT IPC | `gift://` | `risuko.addUri` (sniffed) | — | — |
 
-The CLI's `download` command only distinguishes `.torrent` files (by checking if the path ends with `.torrent` and exists on disk). All other inputs are passed to `addUri`. The Node.js API also offers protocol-specific functions (`addTorrent`, `addMagnet`, `addEd2k`, `addM3u8`, `addFtp`, `addYouTube`) that call the engine directly without scheme sniffing.
+Magnet links are sniffed inside `add_http_task`, the shared target of `risuko.addUri`, so the CLI and aria2-style clients add magnets too — a `magnet:` URI is routed to the torrent handler wherever it enters. Scheme sniffing for M3U8, FTP, and the legacy P2P protocols still lives only in the Tauri `add_uri` command, so a `.m3u8`, `ftp://`, or `gnutella://` URL sent over plain JSON-RPC is enqueued as an HTTP task. The CLI's `download` command distinguishes `.torrent` files (path ends with `.torrent` and exists on disk → `risuko.addTorrent`) and media URLs (`is_media_uri` or `--ytdlp` → `risuko.addMedia`); everything else, magnets included, is passed to `risuko.addUri`. The Node.js API also offers protocol-specific functions (`addTorrent`, `addMagnet`, `addEd2k`, `addM3u8`, `addFtp`) that call the engine directly without scheme sniffing.

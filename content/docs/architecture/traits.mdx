@@ -3,7 +3,7 @@ title: Trait System
 description: How Risuko decouples the engine from runtime environments using Rust traits.
 ---
 
-The engine uses three traits to abstract away environment-specific behavior. Each consumer (Tauri, CLI, NAPI) provides its own implementations.
+The engine uses three traits (defined in `risuko-engine/src/traits.rs`) to abstract away environment-specific behavior. The desktop app provides Tauri-backed implementations in `src-tauri/src/bridge.rs`; the CLI and Node.js bindings bypass the traits and drive `TaskManager` and `EventBroadcaster` directly.
 
 ## ConfigDirProvider
 
@@ -15,24 +15,23 @@ pub trait ConfigDirProvider: Send + Sync {
 }
 ```
 
+The consumer is `ConfigManager::new(&dyn ConfigDirProvider)`. `ConfigManager::with_dir(PathBuf)` also exists for an explicit path.
+
 ### Implementations
 
 | Implementation | Used By | Behavior |
 |---------------|---------|----------|
-| `DefaultConfigDir` | CLI, NAPI | `dirs::config_dir().join("dev.risuko.app")` |
-| `TauriConfigDir` | Desktop App | `AppHandle::path().app_config_dir()` |
+| `TauriConfigDir` | Desktop App (`src/bridge.rs`) | `AppHandle::path().app_config_dir()`, resolved once at construction |
 
-### DefaultConfigDir
+### Default directory (CLI, NAPI)
+
+The CLI and Node.js bindings do not implement the trait. Each resolves the directory with a plain helper and loads `system.json` / `user.json` from it directly:
 
 ```rust
-pub struct DefaultConfigDir;
-
-impl ConfigDirProvider for DefaultConfigDir {
-    fn config_dir(&self) -> PathBuf {
-        dirs::config_dir()
-            .map(|d| d.join("dev.risuko.app"))
-            .unwrap_or_else(|| PathBuf::from("."))
-    }
+fn get_config_dir() -> PathBuf {
+    dirs::config_dir()
+        .map(|d| d.join("dev.risuko.app"))
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 ```
 
@@ -55,11 +54,10 @@ pub trait EventSink: Send + Sync {
 
 | Implementation | Used By | Behavior |
 |---------------|---------|----------|
-| `NoopEventSink` | Engine `start_engine_headless`, RSS in desktop app, bootstrap upload sinks | Discards events silently |
-| `LogEventSink` | Available, not wired by default consumers | Logs events via `log::info!` |
+| `NoopEventSink` | Desktop app bootstrap (`AppState::new` builds `RssManager` / `UploadSinkManager` with a placeholder sink; it takes only a `StorageBackend`, not an event sink), engine tests | Discards events silently |
 | `TauriEventSink` | Desktop App (`src/bridge.rs`) | Calls `AppHandle::emit()` to webview |
 
-The Node.js bindings and the standalone CLI subscribe to `EventBroadcaster` directly instead of constructing an `EventSink`.
+After `AppState` is built, the desktop app swaps the upload manager's bootstrap sink for the live `TauriEventSink` via `UploadSinkManager::set_event_sink`. The Node.js bindings and the standalone CLI use the `EventBroadcaster` instead of constructing an `EventSink`: the NAPI `on_event` calls `events.subscribe()` and forwards each `EngineEvent` to a JS callback through a `ThreadsafeFunction`, while the CLI hands the broadcaster to its `RpcServer`, whose WebSocket handler subscribes and relays events to RPC clients.
 
 ### NoopEventSink
 
@@ -68,18 +66,6 @@ pub struct NoopEventSink;
 
 impl EventSink for NoopEventSink {
     fn emit(&self, _event: &str, _payload: Value) {}
-}
-```
-
-### LogEventSink
-
-```rust
-pub struct LogEventSink;
-
-impl EventSink for LogEventSink {
-    fn emit(&self, event: &str, payload: Value) {
-        log::info!("Engine event: {} {}", event, payload);
-    }
 }
 ```
 
@@ -98,8 +84,10 @@ pub trait StorageBackend: Send + Sync {
 
 | Implementation | Used By | Behavior |
 |---------------|---------|----------|
-| `FileStorage` | CLI, NAPI | JSON files in config directory |
-| `TauriStorage` | Desktop App | Wraps `tauri_plugin_store` |
+| `FileStorage` | Engine tests; available to embedders via `FileStorage::new(dir)` | Pretty-printed `{key}.json` files in a directory |
+| `TauriStorage` | Desktop App (`src/bridge.rs`) | Wraps `tauri_plugin_store`; each key is a store file with the value under its `"data"` entry |
+
+The CLI and Node.js bindings do not construct `RssManager` or `UploadSinkManager`, so they never use a `StorageBackend`.
 
 ### FileStorage
 
@@ -111,17 +99,24 @@ pub struct FileStorage {
 impl StorageBackend for FileStorage {
     fn load(&self, key: &str) -> Result<Option<Value>, String> {
         let path = self.dir.join(format!("{key}.json"));
-        if !path.exists() { return Ok(None); }
-        let data = std::fs::read_to_string(&path)?;
-        let value: Value = serde_json::from_str(&data)?;
+        if !path.exists() {
+            return Ok(None);
+        }
+        let data = std::fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+        let value: Value = serde_json::from_str(&data)
+            .map_err(|e| format!("Failed to parse {}: {e}", path.display()))?;
         Ok(Some(value))
     }
 
     fn save(&self, key: &str, value: &Value) -> Result<(), String> {
-        std::fs::create_dir_all(&self.dir)?;
+        std::fs::create_dir_all(&self.dir)
+            .map_err(|e| format!("Failed to create dir {}: {e}", self.dir.display()))?;
         let path = self.dir.join(format!("{key}.json"));
-        let data = serde_json::to_string_pretty(value)?;
-        std::fs::write(&path, data)?;
+        let data =
+            serde_json::to_string_pretty(value).map_err(|e| format!("Failed to serialize: {e}"))?;
+        std::fs::write(&path, data)
+            .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
         Ok(())
     }
 }
@@ -129,22 +124,22 @@ impl StorageBackend for FileStorage {
 
 ## How the Engine Uses Traits
 
-Both `RssManager` and `UploadSinkManager` are constructed from `dyn` trait objects today; `TaskManager` takes a concrete `EventBroadcaster` and a `&Path` for the config directory:
+Both `RssManager` and `UploadSinkManager` are constructed from `dyn` trait objects today; `ConfigManager` takes a `&dyn ConfigDirProvider`; `TaskManager` takes a concrete `EventBroadcaster` and a `&Path` for the config directory:
 
 ```rust
-// Engine initialization (simplified)
-let config_dir = config_provider.config_dir();
-let system_config = load_config(&config_dir.join("system.json"));
-let user_config = load_config(&config_dir.join("user.json"));
-let options = EngineOptions::from_config(&system_config, &user_config);
+// Desktop app setup (simplified, src-tauri/src/lib.rs)
+let config_dir_provider = bridge::TauriConfigDir::new(handle);
+let event_sink: Arc<dyn EventSink> = Arc::new(bridge::TauriEventSink::new(handle));
+let storage: Arc<dyn StorageBackend> = Arc::new(bridge::TauriStorage::new(handle));
 
-let events = EventBroadcaster::default();
-let manager = TaskManager::new(&config_dir, options, events).await?;
-let rss = RssManager::new(storage_backend.clone(), event_sink.clone());
-let upload_sinks = UploadSinkManager::new(storage_backend, event_sink);
+let config = ConfigManager::new(&config_dir_provider)?;
+let rss = RssManager::new(storage.clone(), event_sink.clone());
+let upload_sinks = UploadSinkManager::new(storage, event_sink.clone());
+
+start_engine(&config, event_sink, Some(upload_sinks)).await?;
 ```
 
-Consumers that need to translate broadcast events into a host environment (Tauri, NAPI) subscribe to `events.subscribe()` and forward each `EngineEvent` themselves; the trait surface only matters for `RssManager`, `UploadSinkManager`, and for `start_engine_headless` in `engine/mod.rs`.
+Inside `start_engine` (`engine/mod.rs`), an event bridge subscribes to the `EventBroadcaster` and forwards each `EngineEvent` to the `EventSink` as `engine:*` events. Consumers that bypass `start_engine` wire the `EventBroadcaster` themselves — NAPI subscribes via `events.subscribe()` and forwards each `EngineEvent` to a JS callback, while the CLI passes the broadcaster to its `RpcServer`, which subscribes and relays events to RPC clients; the trait surface only matters for `ConfigManager`, `RssManager`, `UploadSinkManager`, and for `start_engine` in `engine/mod.rs`.
 
 ## Custom Implementations
 

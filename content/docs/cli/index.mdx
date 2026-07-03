@@ -12,6 +12,12 @@ The Risuko CLI (`risuko`) is a standalone binary that provides full access to th
 npm install -g @risuko/cli
 ```
 
+Or use Homebrew:
+
+```bash
+brew install yuemiyuki/risuko/risuko-cli
+```
+
 Or download standalone binaries from [GitHub Releases](https://github.com/YueMiyuki/risuko/releases).
 
 ## Usage
@@ -24,7 +30,7 @@ risuko <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| [`download`](/docs/cli/commands#download) | Download a file from a URL, magnet link, or torrent file |
+| [`download`](/docs/cli/commands#download) | Download a file from a URL, magnet link, or `.torrent` file |
 | [`status`](/docs/cli/commands#status) | Show status of downloads |
 | [`pause`](/docs/cli/commands#pause) | Pause a download |
 | [`resume`](/docs/cli/commands#resume) | Resume a paused download |
@@ -42,10 +48,10 @@ risuko <command> [options]
 
 ## Global Behavior
 
-- The CLI connects to the engine's JSON-RPC server (default port `16800`)
+- The CLI connects to the engine's JSON-RPC server (default port `16800`); the exceptions are `config`, which reads and writes the local config files directly, and `serve`, which starts the engine itself
 - If no engine is running, the `download` command starts a temporary headless instance
 - Use `--rpc-port` on most commands to connect to a non-default port
-- Use `--rpc-secret` to pass an authentication token when the engine has `rpc-secret` configured
+- Use `--rpc-secret` to pass an authentication token when the engine has `rpc-secret` configured; if omitted, the CLI falls back to the `rpc-secret` value from config
 - Use `--json` for machine-readable output
 
 <Cards>

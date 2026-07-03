@@ -3,31 +3,33 @@ title: Introduction
 description: Risuko is a Rust-powered multi-protocol download engine with a desktop app, CLI, and Node.js API.
 ---
 
-Risuko (Ri-su-ko) is a high-performance download engine written in Rust. It supports HTTP/HTTPS, BitTorrent (v1 + v2), ED2K, M3U8/HLS, FTP/SFTP, YouTube (via yt-dlp), the legacy P2P stacks (ADC / Direct Connect, Gnutella, G2, giFT), and RSS feeds.
+Risuko (Ri-su-ko) is a high-performance download engine written in Rust. It supports HTTP/HTTPS, BitTorrent (v1 + v2), ED2K, M3U8/HLS, FTP/FTPS/SFTP, media sites (via yt-dlp), the legacy P2P networks Gnutella, G2, and giFT, and RSS feeds.
 
 The name means squirrel in Japanese, an energetic little creature that rapidly gathers and caches away every treasure it finds.
 
 You can use Risuko in three ways:
 
 - **Desktop App** — A cross-platform GUI built with Tauri and Vue.js
-- **CLI** — A standalone command-line tool with full feature parity
+- **CLI** — A standalone command-line tool that can also run the engine headless (`risuko serve`)
 - **Node.js API** — Native bindings via napi-rs for embedding in your applications
+
+The engine also exposes an aria2-compatible JSON-RPC server (default port 16800) that the CLI and third-party clients talk to.
 
 ## Supported Protocols
 
 | Protocol | Description |
 |----------|-------------|
-| HTTP/HTTPS | Multi-threaded range-based downloads with connection pooling |
-| BitTorrent | Magnet links, `.torrent` files, **v1 + v2 (BEP 52) hybrid**, dual-stack DHT, LSD, MSE/PE encryption, UPnP port mapping, seeding control |
-| ED2K | eDonkey2000 network protocol |
+| HTTP/HTTPS | Multi-threaded range-based downloads with mirror failover, resume, and connection pooling |
+| BitTorrent | Magnet links, `.torrent` files, **v1 + v2 (BEP 52) hybrid**, TCP + µTP transports, dual-stack DHT, PEX, LSD, MSE/PE encryption, UPnP port mapping, seeding control |
+| ED2K | eDonkey2000 downloads via `ed2k://\|file\|…` links (files up to 4 GiB) |
 | M3U8/HLS | HTTP Live Streaming segment downloads (with AES-128-CBC decrypt) |
-| FTP/SFTP | File Transfer Protocol with TLS support; SFTP host keys pinned via TOFU |
-| YouTube | Bundled `yt-dlp` child process with progress integration |
-| ADC / DC | `adc(s)://`, `dchub://`, `nmdc://` — Advanced Direct Connect + legacy NMDC |
-| Gnutella | `gnutella://` / `gnet://` — 0.6 handshake + GWebCache bootstrap |
+| FTP/FTPS/SFTP | FTP with implicit/explicit TLS; SFTP host keys pinned via TOFU |
+| Media (yt-dlp) | External `yt-dlp` (from `PATH`) for YouTube and other media hosts, with progress integration |
+| ADC / DC | `adc(s)://`, `dchub://`, `nmdc://` — URI recognition only; peer transfers are not implemented (tasks fail with "no source") |
+| Gnutella | `gnutella://` / `gnet://` — direct HTTP/1.1 download by SHA-1 URN (`/uri-res/N2R`) |
 | Gnutella2 (G2) | `g2://` — SHA-1 URN download via Gnutella's HTTP peer endpoint |
-| giFT | `gift://` — IPC bridge to a locally-running `giftd` daemon |
-| RSS | Automatic feed subscription and download |
+| giFT | `gift://` — IPC bridge to a locally-running `giftd` daemon (disabled by default) |
+| RSS | Feed subscriptions with rule-based automatic downloads |
 
 ## Cloud Upload Sinks
 
@@ -44,22 +46,22 @@ for routing rules and post-upload actions.
 # Download a file with 16 threads
 risuko download https://example.com/large-file.zip -t 16
 
-# Download a torrent
-risuko download magnet:?xt=urn:btih:abc123...
+# Download a torrent (local .torrent file)
+risuko download ./ubuntu.torrent
 ```
 
 ### Node.js
 
 ```js
-import { startEngine, addUri, onEvent } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
 
-await startEngine();
+await risuko.startEngine();
 
-onEvent((event, gid) => {
+risuko.onEvent((event, gid) => {
   console.log(`[${event}] ${gid}`);
 });
 
-const gid = await addUri(["https://example.com/file.zip"]);
+const gid = await risuko.addUri(["https://example.com/file.zip"]);
 ```
 
 ## Next Steps

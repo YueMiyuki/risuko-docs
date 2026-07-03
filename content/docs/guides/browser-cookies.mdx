@@ -18,13 +18,17 @@ it raises [error code 315](/docs/reference/error-codes) and shows the
 The dialog lets you:
 
 1. Pick an installed browser (Chrome, Firefox, Edge, Brave, Arc, Safari, etc.)
-2. Preview which cookies will be imported for the blocked host
-3. Confirm the import and retry the download with those cookies and the
-   browser's User-Agent string
+2. Open the blocked URL in that browser and solve the challenge
+3. Preview which cookies will be imported for the blocked host
+4. Confirm the User-Agent and retry the download with the imported cookies.
+   `cf_clearance` is bound to the User-Agent that solved the challenge, so the
+   dialog requires one — use **Detect from browser** to capture the exact
+   string your browser sends.
 
 Cookies are stored per-host in `browser_cookies.json` inside the app config
 directory and are automatically applied to future downloads from the same host
-(including subdomains).
+(including subdomains). Cookies or a User-Agent set on the task itself always
+win; the store only fills in what is absent.
 
 ## Supported Browsers
 
@@ -36,33 +40,46 @@ directory and are automatically applied to future downloads from the same host
 | Microsoft Edge | ✓ | ✓ | ✓ |
 | Vivaldi | ✓ | ✓ | ✓ |
 | Opera | ✓ | ✓ | ✓ |
-| Opera GX | ✓ | ✓ | — |
 | Arc | ✓ | — | — |
 | Firefox | ✓ | ✓ | ✓ |
 | LibreWolf | ✓ | ✓ | ✓ |
 | Zen | ✓ | ✓ | ✓ |
 | Safari | ✓ | — | — |
-| Cachy Browser | — | — | ✓ |
 
 Only browsers that are installed and have a readable profile appear as
 available in the picker. Browsers with a locked or missing profile show as
-unavailable.
+unavailable. Browser cookie import is not supported on Android.
 
 ## Managing Saved Cookies
 
 Imported cookies are visible under **Preferences → Advanced → Saved domain
 credentials**. Each entry shows the host, the source browser, the number of
-cookies, and when it was last used.
+cookies, and when it was imported.
 
 You can delete individual entries or clear all saved cookies from that panel.
 Entries are also evicted automatically when the store exceeds 200 hosts
-(oldest-last-used first).
+(oldest-last-used first), and a saved entry that triggers another Cloudflare
+challenge is dropped so the next attempt re-prompts instead of replaying stale
+cookies.
 
 ## Retrying a Blocked Download
 
-If a download is already in an error state with code 315, open the task
-context menu and choose **Retry with cookies**. The Cloudflare dialog
-re-opens so you can pick a browser and retry without re-adding the task.
+The Cloudflare dialog opens automatically whenever a task fails with error
+code 315. If you dismissed it, restart the task — the next 315 error re-opens
+the dialog. Checking **Don't ask again for this domain** suppresses the dialog
+for that host until the app restarts; blocked tasks then fail with a plain
+error message.
+
+If a retry with imported cookies is blocked again, the dialog re-opens with a
+warning: some sites also fingerprint the TLS handshake or HTTP/2 settings,
+which `cf_clearance` alone cannot pass.
+
+## Importing While Adding a Task
+
+The Add Task dialog has an **Import from browser** button next to the Cookie
+field. It lists the same browsers, extracts the cookies matching the entered
+URL, fills the field with the resulting `Cookie` header, and saves the entry
+to the cookie store.
 
 ## Programmatic Access
 
@@ -80,8 +97,16 @@ const result = await invoke("import_browser_cookies", {
   browser: "chrome",
   url: "https://example.com/file.zip",
   persist: true, // save to the cookie store (default: true)
+  userAgent: "Mozilla/5.0 ...", // optional; falls back to the browser's default UA
 });
 // { host, userAgent, cookieHeader, count, hasCfClearance, cookieNames, cookies }
+// Fails with "ELEVATION_REQUIRED" for Chrome 130+ app-bound cookies on Windows;
+// retry with import_browser_cookies_elevated (same arguments), which relaunches
+// Risuko with administrator rights via a UAC prompt.
+
+// Capture the default browser's real User-Agent (opens a one-shot
+// localhost page in the browser; times out after 60 s)
+const { userAgent } = await invoke("capture_user_agent");
 
 // Retry a failed task with the saved cookies for its host
 await invoke("retry_with_cookies", {
@@ -96,7 +121,7 @@ await invoke("retry_with_cookies", {
 const entries = await invoke("list_cookie_entries");
 // [{ host, browserId, userAgent, cookieCount, importedAt, lastValidatedAt }]
 
-// Delete a saved entry
+// Delete a saved entry (returns true if it existed)
 await invoke("delete_cookie_entry", { host: "example.com" });
 
 // Clear all saved entries
@@ -106,8 +131,12 @@ await invoke("clear_cookie_entries");
 ## Notes
 
 - Cookie values are stored in plaintext in `browser_cookies.json`. They are
-  never sent to Risuko servers — all cookie reads happen locally via the
-  [rookie](https://github.com/thewh1teagle/rookie) library.
+  never sent to Risuko servers — Risuko reads the browser's cookie database
+  directly on your machine.
+- Reading Chromium-family cookies on macOS decrypts them with the browser's
+  Safe Storage key, which triggers an OS keychain prompt on first use.
+- On Windows, Chrome 130+ protects cookies with app-bound encryption;
+  importing them requires administrator approval (UAC).
 - The `cf_clearance` cookie has a short TTL (typically 30 minutes to a few
   hours). If a previously working download starts failing again with error 315,
   re-import cookies from the browser after visiting the site manually.

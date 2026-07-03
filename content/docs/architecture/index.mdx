@@ -18,7 +18,7 @@ Risuko follows a layered architecture where the core download engine is fully de
   </div>
 
   <div className="flex justify-center">
-    <div className="rounded-md border bg-fd-accent px-4 py-1.5 text-center font-mono text-xs">JSON-RPC</div>
+    <div className="rounded-md border bg-fd-accent px-4 py-1.5 text-center font-mono text-xs">in-process (Tauri commands, NAPI) &middot; JSON-RPC (CLI, external clients)</div>
   </div>
 
   <div className="rounded-lg border bg-fd-card p-4">
@@ -26,7 +26,7 @@ Risuko follows a layered architecture where the core download engine is fully de
     <div className="grid grid-cols-3 gap-3 text-center">
       <div className="rounded-md border bg-fd-background px-3 py-2">Config Module</div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Engine Manager</div>
-      <div className="rounded-md border bg-fd-background px-3 py-2">Protocol Handlers<br/><span className="text-fd-muted-foreground text-xs">HTTP, BT (risuko-bt), ED2K, M3U8, FTP/SFTP, YouTube (yt-dlp), ADC/DC, Gnutella, G2, giFT, RSS, Upload Sinks</span></div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Protocol Handlers<br/><span className="text-fd-muted-foreground text-xs">HTTP, BT (risuko-bt), ED2K, M3U8, FTP/SFTP, Media (yt-dlp), ADC/DC, Gnutella, G2, giFT, RSS, Upload Sinks</span></div>
       <div className="rounded-md border bg-fd-background px-3 py-2">RPC Server</div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Events Broadcast</div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Traits<br/><span className="text-fd-muted-foreground text-xs">ConfigDir, Events, Storage</span></div>
@@ -36,20 +36,23 @@ Risuko follows a layered architecture where the core download engine is fully de
 
 ## Cargo Workspace
 
-The project is organized as a Cargo workspace with six crates:
+The project is organized as a Cargo workspace with nine crates:
 
 | Crate | Type | Description |
 |-------|------|-------------|
 | `risuko-engine` | Library | Core engine — protocol handlers, RPC server, RSS, upload sinks |
-| `risuko-bt` | Library | In-tree BitTorrent v1 + v2 (BEP 52) engine consumed by `risuko-engine` |
+| `risuko-bt` | Library | In-tree BitTorrent engine (v1, v2 per BEP 52, and hybrid) consumed by `risuko-engine` |
 | `risuko-http` | Library | Minimal `hyper` v1 HTTP client (TLS pool, SOCKS5/HTTP proxy, redirects, cookies, gzip/br/deflate decompression, pluggable DNS resolver with optional DNS-over-HTTPS) — no `reqwest` dep |
+| `risuko-cookies` | Library | Browser cookie extraction (Chromium, Firefox, Safari families) |
+| `risuko-share` | Library | Peer-to-peer encrypted file sharing built on iroh |
+| `risuko-webview-upgrade` | Library | Tauri plugin that swaps in a newer WebView kernel on Android |
 | `risuko-cli` | Binary | Standalone CLI tool |
 | `risuko-napi` | cdylib | Native Node.js bindings |
 | `risuko` (root) | Binary | Tauri desktop application |
 
 ```toml
 [workspace]
-members = ["risuko-engine", "risuko-bt", "risuko-cli", "risuko-napi", "risuko-http"]
+members = ["risuko-engine", "risuko-bt", "risuko-cli", "risuko-napi", "risuko-http", "risuko-cookies", "risuko-webview-upgrade", "risuko-share"]
 ```
 
 ## Key Design Decisions
@@ -74,7 +77,7 @@ The Node.js bindings use a global `LazyLock<Mutex<Option<NapiEngine>>>` singleto
 
 ### Platform-Specific npm Packages
 
-Both `risuko-cli` and `risuko-js` use the esbuild distribution pattern: a main package with `optionalDependencies` pointing to platform-specific packages. npm automatically installs only the package matching the current platform.
+Both the CLI (`@risuko/cli`) and the Node.js bindings (`@risuko/risuko-js`) use the esbuild distribution pattern: a main package with `optionalDependencies` pointing to platform-specific packages. npm automatically installs only the package matching the current platform. A third package, `@risuko/app`, is a launcher that downloads the desktop app from GitHub Releases on first run.
 
 <Cards>
   <Card title="Trait System" href="/docs/architecture/traits" />

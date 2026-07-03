@@ -40,6 +40,8 @@ risuko download https://example.com/file.zip -H "Authorization: Bearer token123"
 
 ### Download a Torrent
 
+The CLI accepts a magnet link or a path to a `.torrent` file.
+
 ```bash
 # From a magnet link
 risuko download "magnet:?xt=urn:btih:abc123..."
@@ -47,8 +49,19 @@ risuko download "magnet:?xt=urn:btih:abc123..."
 # From a .torrent file
 risuko download ./ubuntu.torrent
 
-# With seeding limits
-risuko download "magnet:?xt=urn:btih:abc123..." --seed-ratio 1.0 --seed-time 60
+# With seeding limits (seed-time is in minutes)
+risuko download ./ubuntu.torrent --seed-ratio 1.0 --seed-time 60
+```
+
+### Download Media
+
+URLs from recognized media hosts are routed through yt-dlp automatically:
+
+```bash
+risuko download "https://www.youtube.com/watch?v=..."
+
+# Force yt-dlp for an unrecognized host, with a format selector
+risuko download "https://example.com/video" --ytdlp --media-format "bestvideo+bestaudio"
 ```
 
 ### Monitor Downloads
@@ -62,6 +75,9 @@ risuko status --gid a1b2c3d4
 
 # JSON output for scripting
 risuko status --json
+
+# Global speed and task counts
+risuko global-stat
 ```
 
 ### Control Downloads

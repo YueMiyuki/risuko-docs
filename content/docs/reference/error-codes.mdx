@@ -5,7 +5,9 @@ description: Complete reference of Risuko download engine error codes.
 
 Risuko uses numeric error codes to identify download failures. Each error code belongs to a category based on its numeric range.
 
-When a download fails, the error code and a human-readable message are stored on the task and displayed in the UI.
+When a download fails, the error code and a human-readable message are stored on the task and displayed in the UI. In the task's JSON representation they appear as `errorCode` (the code as a string, e.g. `"315"`) and `errorMessage`; both are omitted when the task has no error and cleared when it restarts.
+
+Codes are assigned by pattern-matching the failure message text. Messages that match no pattern fall back to code 100.
 
 ## Error Code Ranges
 
@@ -16,7 +18,6 @@ When a download fails, the error code and a human-readable message are stored on
 | 3xx | HTTP errors |
 | 4xx | File system errors |
 | 5xx | Protocol-specific errors |
-| 6xx | Resource errors |
 | 9xx | Internal engine errors |
 
 ---
@@ -26,8 +27,6 @@ When a download fails, the error code and a human-readable message are stored on
 | Code | Name | Description |
 |------|------|-------------|
 | 100 | Unknown | An unclassified error occurred. Check the error message for details. |
-| 101 | Cancelled | The download was cancelled by the user or system. |
-| 102 | Checksum Mismatch | The downloaded file's checksum does not match the expected value. |
 
 ## Network Errors (2xx)
 
@@ -62,10 +61,6 @@ When a download fails, the error code and a human-readable message are stored on
 |------|------|-------------|
 | 400 | Disk Full | No space left on the target disk or storage quota exceeded. |
 | 401 | Permission Denied | Insufficient permissions to write to the download directory. |
-| 402 | File Not Found | A required local file (e.g., a partial download) was not found. |
-| 403 | File Already Exists | The output file already exists and overwrite is not enabled. |
-| 404 | Invalid Path | The output file path is invalid or contains unsupported characters. |
-| 405 | I/O Error | A general file system I/O error occurred. |
 
 ## Protocol-Specific Errors (5xx)
 
@@ -103,28 +98,19 @@ When a download fails, the error code and a human-readable message are stored on
 | 533 | SFTP Auth Failed | SFTP authentication failed. Check your credentials or private key. |
 | 534 | SFTP Host Key Failed | The SFTP server's host key could not be verified, or the pinned fingerprint changed (TOFU). |
 
-### YouTube (yt-dlp)
+### Media (yt-dlp)
 
 | Code | Name | Description |
 |------|------|-------------|
-| 540 | yt-dlp Not Found | The bundled `yt-dlp` binary could not be located on `PATH`. Reinstall the app or install `yt-dlp` manually. |
-| 541 | Authentication Required | The video requires login. Provide cookies via `load-cookies` or `cookie`. |
-| 542 | Format Unavailable | The format selector in `youtube-format` did not match any of the formats yt-dlp returned. |
-
-## Resource Errors (6xx)
-
-| Code | Name | Description |
-|------|------|-------------|
-| 600 | Out of Memory | The system ran out of memory during the download. |
-| 601 | Too Many Connections | The maximum number of concurrent connections was exceeded. |
+| 540 | yt-dlp Not Found | The `yt-dlp` binary could not be located on `PATH`. Install `yt-dlp` to enable media downloads. |
+| 541 | Authentication Required | The video requires login (sign-in, members-only, or age-restricted). Provide cookies via the `cookies` file option or a `cookie` header. |
+| 542 | Format Unavailable | The format selector in `media-format` (aliases `youtube-format`, `yt-format`) did not match any of the formats yt-dlp returned. |
 
 ## Internal Errors (9xx)
 
 | Code | Name | Description |
 |------|------|-------------|
 | 900 | Engine Not Running | The download engine is not running. Try restarting the application. |
-| 901 | Invalid Parameter | An invalid parameter was passed to the engine. |
-| 902 | Session Corrupt | The session data file is corrupt and could not be loaded. |
 
 ---
 

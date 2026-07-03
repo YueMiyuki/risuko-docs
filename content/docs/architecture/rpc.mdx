@@ -7,7 +7,9 @@ Risuko exposes a JSON-RPC 2.0 server over HTTP. The CLI uses this interface, and
 
 ## Connection
 
-The RPC server listens on `http://localhost:16800/jsonrpc` by default.
+The RPC server listens on `http://127.0.0.1:16800/jsonrpc` by default. Host, port, and secret come from the `rpc-host`, `rpc-listen-port`, and `rpc-secret` config keys.
+
+Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&params=<base64(JSON array)>`. An optional `jsoncallback` query parameter wraps the response in JSONP. A `GET` with an `Upgrade: websocket` header opens a WebSocket instead (see below).
 
 ## Request Format
 
@@ -22,6 +24,8 @@ The RPC server listens on `http://localhost:16800/jsonrpc` by default.
   ]
 }
 ```
+
+`params` must be a positional array; named (object) params are rejected with `-32602`. The body may also be a batch array of request objects.
 
 ## Response Format
 
@@ -42,16 +46,18 @@ The RPC server listens on `http://localhost:16800/jsonrpc` by default.
 | `risuko.addUri` | `[uris[], options?]` | GID string |
 | `risuko.addTorrent` | `[base64Data, uris[], options?]` | GID string |
 | `risuko.addEd2k` | `[uri, options?]` | GID string |
-| `risuko.addYouTube` | `[url, options?]` | GID string |
-| `risuko.pause` | `[gid]` | — |
-| `risuko.unpause` | `[gid]` | — |
-| `risuko.remove` | `[gid]` | — |
-| `risuko.forcePause` | `[gid]` | — |
-| `risuko.forceRemove` | `[gid]` | — |
-| `risuko.pauseAll` | — | — |
-| `risuko.unpauseAll` | — | — |
-| `risuko.forcePauseAll` | — | — |
-| `risuko.changePosition` | `[gid, pos, how]` | New position |
+| `risuko.addMedia` | `[url, options?]` | GID string |
+| `risuko.pause` | `[gid]` | GID string |
+| `risuko.unpause` | `[gid]` | GID string |
+| `risuko.remove` | `[gid]` | GID string |
+| `risuko.forcePause` | `[gid]` | GID string |
+| `risuko.forceRemove` | `[gid]` | GID string |
+| `risuko.pauseAll` | — | `"OK"` |
+| `risuko.unpauseAll` | — | `"OK"` |
+| `risuko.forcePauseAll` | — | `"OK"` |
+| `risuko.changePosition` | `[gid, pos?, how?]` | New position |
+
+`risuko.addMedia` accepts URLs from supported media sites (downloaded via yt-dlp). Other URLs are rejected with "Not a supported media URL" unless the `force-ytdlp` option is set. Methods that take a `gid` also accept a unique GID prefix of at least 4 characters.
 
 ### Queries
 
@@ -59,8 +65,8 @@ The RPC server listens on `http://localhost:16800/jsonrpc` by default.
 |--------|-----------|---------|
 | `risuko.tellStatus` | `[gid, keys?]` | Status object |
 | `risuko.tellActive` | `[keys?]` | Status object array |
-| `risuko.tellWaiting` | `[offset, num, keys?]` | Status object array |
-| `risuko.tellStopped` | `[offset, num, keys?]` | Status object array |
+| `risuko.tellWaiting` | `[offset?, num?, keys?]` | Status object array |
+| `risuko.tellStopped` | `[offset?, num?, keys?]` | Status object array |
 | `risuko.getGlobalStat` | — | Stat object |
 | `risuko.getFiles` | `[gid]` | File array |
 | `risuko.getPeers` | `[gid]` | Peer array |
@@ -75,18 +81,20 @@ The RPC server listens on `http://localhost:16800/jsonrpc` by default.
 |--------|-----------|---------|
 | `risuko.getOption` | `[gid]` | Options object |
 | `risuko.getGlobalOption` | — | Options object |
-| `risuko.changeOption` | `[gid, options]` | — |
-| `risuko.changeGlobalOption` | `[options]` | — |
+| `risuko.changeOption` | `[gid, options]` | `"OK"` |
+| `risuko.changeGlobalOption` | `[options]` | `"OK"` |
 
 ### Session
 
 | Method | Parameters | Returns |
 |--------|-----------|---------|
-| `risuko.saveSession` | — | — |
-| `risuko.purgeDownloadResult` | — | — |
-| `risuko.removeDownloadResult` | `[gid]` | — |
-| `risuko.shutdown` | — | — |
-| `risuko.forceShutdown` | — | — |
+| `risuko.saveSession` | — | `"OK"` |
+| `risuko.purgeDownloadResult` | — | `"OK"` |
+| `risuko.removeDownloadResult` | `[gid]` | `"OK"` |
+| `risuko.shutdown` | — | `"OK"` |
+| `risuko.forceShutdown` | — | `"OK"` |
+
+`shutdown` saves the session before stopping the engine; `forceShutdown` skips the save.
 
 ### Task Routing
 
@@ -107,7 +115,7 @@ A rule has the shape:
 {
   "id": "rule-videos",
   "label": "Videos",
-  "pattern": "*.{mp4,mkv,webm}",
+  "pattern": "*.mkv",
   "dir": "/downloads/videos",
   "enabled": true
 }
@@ -147,17 +155,17 @@ curl -X POST http://localhost:16800/jsonrpc \
   "jsonrpc": "2.0",
   "id": "1",
   "error": {
-    "code": -32600,
-    "message": "GID a1b2c3d4 not found"
+    "code": 1,
+    "message": "Task a1b2c3d4 not found"
   }
 }
 ```
 
-Standard JSON-RPC error codes apply. Application-specific errors use codes in the `-32000` to `-32099` range.
+Protocol errors use the standard JSON-RPC codes: `-32700` (parse error), `-32600` (invalid request), `-32601` (method not found), `-32602` (invalid params). Application errors — including failed authentication — use code `1`.
 
 ## aria2 Compatibility
 
-The RPC server accepts both `risuko.*` and `aria2.*` method prefixes. For example, `aria2.addUri` is treated as `risuko.addUri`. This makes it compatible with existing aria2 RPC clients.
+The RPC server accepts both `risuko.*` and `aria2.*` method prefixes. For example, `aria2.addUri` is treated as `risuko.addUri`. This makes it compatible with existing aria2 RPC clients. `system.listMethods` returns every method under both prefixes.
 
 ## Authentication
 
@@ -194,4 +202,4 @@ Returns an array where each element is either `[result]` (success) or `{ "code",
 
 ## WebSocket Subscribe
 
-The server upgrades `GET /jsonrpc` requests with a `Connection: Upgrade` / `Upgrade: websocket` header to a WebSocket. Once connected, the engine streams JSON-RPC notifications matching the aria2 event names — `aria2.onDownloadStart`, `aria2.onDownloadPause`, `aria2.onDownloadStop`, `aria2.onDownloadComplete`, `aria2.onDownloadError`, `aria2.onBtDownloadComplete` (each also published as `risuko.on…`) — for every task transition. Regular request/response calls also work over the same socket. Use `system.listNotifications` to enumerate the supported names.
+The server upgrades `GET /jsonrpc` requests with a `Connection: Upgrade` / `Upgrade: websocket` header to a WebSocket. Once connected, the engine streams JSON-RPC notifications for every task transition: `risuko.onDownloadStart`, `risuko.onDownloadPause`, `risuko.onDownloadStop`, `risuko.onDownloadComplete`, `risuko.onDownloadError`, `risuko.onBtDownloadComplete`. Pushed notifications always use the `risuko.` prefix, even though `system.listNotifications` lists each name under both prefixes. Each notification carries `params: [{"gid": "<gid>"}]` and no `id`. Regular request/response calls also work over the same socket.

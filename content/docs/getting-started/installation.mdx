@@ -65,16 +65,17 @@ This provides native Node.js bindings with full TypeScript definitions.
 
 ### Requirements
 
-- Node.js 18 or later
+- Node.js 22 or later
 - One of the supported platforms listed above
 
 ## Desktop App
 
 Download the latest release from [GitHub Releases](https://github.com/YueMiyuki/risuko/releases):
 
-- **macOS**: `.dmg` (Universal or per-architecture)
+- **macOS**: `.dmg` (Intel and Apple Silicon)
 - **Linux**: `.deb`, `.rpm`, or `.AppImage`
-- **Windows**: `.msi` or `.exe` installer
+- **Windows**: `.setup.exe` (NSIS installer, per-user) or `.portable.exe` (no install)
+- **Android**: `.apk` (per-ABI builds)
 
 ### Linux: WebKitGTK rendering
 
@@ -97,6 +98,8 @@ Then run:
 ```bash
 risuko-app
 ```
+
+On first run the launcher downloads the desktop app for your platform from GitHub Releases, verifies its SHA-256 checksum, and caches it per version; later runs launch the cached copy. Use `--version <x.y.z>` to fetch a specific release and `--no-cache` to force a re-download. Requires Node.js 22 or later.
 
 or, use Homebrew
 ```bash
@@ -126,7 +129,7 @@ pnpm tauri build
 
 ### Build Requirements
 
-- Rust 1.75+ (stable)
-- Node.js 18+
-- pnpm 10+
+- Rust 1.85+ (stable)
+- Node.js 22+
+- pnpm 11+
 - Platform-specific dependencies (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))

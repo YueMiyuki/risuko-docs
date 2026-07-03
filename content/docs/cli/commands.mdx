@@ -5,10 +5,10 @@ description: Detailed reference for all Risuko CLI commands.
 
 ## download
 
-Download a file from a URL, magnet link, or `.torrent` file.
+Download a file from a URL or a `.torrent` file path.
 
 ```bash
-risuko download <url> [options]
+risuko download <url>... [options]
 ```
 
 If no running engine is detected, a temporary headless instance is started automatically.
@@ -17,7 +17,7 @@ If no running engine is detected, a temporary headless instance is started autom
 
 | Argument | Description |
 |----------|-------------|
-| `url` | URL, magnet link, or path to a `.torrent` file |
+| `url...` | URL(s), a magnet link, or a path to a `.torrent` file. Multiple URLs are treated as HTTP mirrors of the same file; torrent, magnet, media, and yt-dlp downloads accept only one input |
 
 ### Options
 
@@ -29,10 +29,10 @@ If no running engine is detected, a temporary headless instance is started autom
 | `--header` | `-H` | — | HTTP header (repeatable) |
 | `--user-agent` | — | — | User agent string |
 | `--proxy` | — | — | Proxy server URL |
-| `--doh-url` | — | — | DNS-over-HTTPS endpoint URL (e.g. `https://cloudflare-dns.com/dns-query`). Enables DoH for the engine via `changeGlobalOption` before the task is added |
-| `--doh-bootstrap` | — | — | Comma-separated IPs used to reach the DoH endpoint without a system-DNS lookup (optional) |
 | `--referer` | — | — | HTTP referer |
-| `--cookie` | — | — | Cookie string |
+| `--cookie` | — | — | Cookie string, sent as a `Cookie` header (ignored if a `-H` header already sets one) |
+| `--media-format` | — | — | Media format selector passed to yt-dlp (alias: `--youtube-format`) |
+| `--ytdlp` | — | — | Force the URL through the yt-dlp media engine even if its host is not in the built-in allowlist |
 | `--seed-ratio` | — | — | BitTorrent seed ratio (e.g. `1.0`) |
 | `--seed-time` | — | — | BitTorrent seed time in minutes |
 | `--rpc-port` | — | `16800` | RPC port to connect to |
@@ -49,14 +49,13 @@ risuko download https://example.com/file.zip
 risuko download https://example.com/file.zip -t 32 -d ~/Downloads
 
 # Torrent with seeding limits
-risuko download "magnet:?xt=urn:btih:abc123" --seed-ratio 1.0 --seed-time 60
+risuko download ./ubuntu-24.04.torrent --seed-ratio 1.0 --seed-time 60
 
 # With authentication header
 risuko download https://example.com/private.zip -H "Authorization: Bearer token"
 
-# Resolving DNS over HTTPS (applies to the engine globally)
-risuko download https://example.com/file.zip \
-  --doh-url https://cloudflare-dns.com/dns-query --doh-bootstrap 1.1.1.1,1.0.0.1
+# Media download via yt-dlp with a format selector
+risuko download https://example.com/watch?v=abc --ytdlp --media-format "bestvideo+bestaudio"
 
 # From a .torrent file
 risuko download ./ubuntu-24.04.torrent -d ~/Downloads
@@ -86,10 +85,11 @@ risuko status [options]
 Without `--gid`, displays a table of all downloads:
 
 ```
-GID       STATUS    PROGRESS  SPEED      NAME
-a1b2c3d4  active    64.2%     12.4 MB/s  ubuntu-24.04-server-amd64.iso
-e5f6a7b8  waiting   0.0%      —          archlinux-2024.04.01-x86_64.iso
-c9d0e1f2  complete  100.0%    —          node-v22.0.0.tar.gz
+GID                Status     Name                            Progress        Speed       Size
+---------------------------------------------------------------------------------------------
+a1b2c3d4e5f6a7b8   active     ubuntu-24.04-server-amd64.iso      64.2%    12.4 MB/s     2.6 GB
+e5f6a7b8c9d0e1f2   waiting    archlinux-2024.04.01-x86_...        0.0%            -     1.2 GB
+c9d0e1f2a1b2c3d4   complete   node-v22.0.0.tar.gz               100.0%            -    89.4 MB
 ```
 
 With `--gid`, shows detailed information for a single task.
@@ -101,7 +101,7 @@ With `--gid`, shows detailed information for a single task.
 Pause a specific download.
 
 ```bash
-risuko pause <gid> [--rpc-port PORT]
+risuko pause <gid> [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ---
@@ -111,7 +111,7 @@ risuko pause <gid> [--rpc-port PORT]
 Resume a paused download.
 
 ```bash
-risuko resume <gid> [--rpc-port PORT]
+risuko resume <gid> [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ---
@@ -133,7 +133,7 @@ Multiple GIDs can be passed in a single invocation.
 Pause all active downloads.
 
 ```bash
-risuko pause-all [--rpc-port PORT]
+risuko pause-all [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ---
@@ -143,7 +143,7 @@ risuko pause-all [--rpc-port PORT]
 Resume all paused downloads.
 
 ```bash
-risuko resume-all [--rpc-port PORT]
+risuko resume-all [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ---
@@ -153,17 +153,14 @@ risuko resume-all [--rpc-port PORT]
 Show global download and upload statistics.
 
 ```bash
-risuko global-stat [--rpc-port PORT] [--json]
+risuko global-stat [--rpc-port PORT] [--rpc-secret SECRET] [--json]
 ```
 
 ### Output
 
 ```
-Download Speed: 24.8 MB/s
-Upload Speed:   1.2 MB/s
-Active:         3
-Waiting:        2
-Stopped:        15
+Download: 24.8 MB/s   Upload: 1.2 MB/s
+Active: 3   Waiting: 2   Stopped: 15
 ```
 
 ---
@@ -173,7 +170,7 @@ Stopped:        15
 Show files belonging to a download.
 
 ```bash
-risuko files <gid> [--rpc-port PORT] [--json]
+risuko files <gid> [--rpc-port PORT] [--rpc-secret SECRET] [--json]
 ```
 
 ---
@@ -183,7 +180,7 @@ risuko files <gid> [--rpc-port PORT] [--json]
 Show connected peers for a BitTorrent download.
 
 ```bash
-risuko peers <gid> [--rpc-port PORT] [--json]
+risuko peers <gid> [--rpc-port PORT] [--rpc-secret SECRET] [--json]
 ```
 
 ---
@@ -193,7 +190,7 @@ risuko peers <gid> [--rpc-port PORT] [--json]
 Remove completed, errored, and removed download results from the engine's memory.
 
 ```bash
-risuko purge [--rpc-port PORT]
+risuko purge [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ---
@@ -214,11 +211,11 @@ risuko config get <key>
 risuko config set <key> <value>
 ```
 
-The value should be valid JSON:
+The value is parsed as JSON; if parsing fails, it is stored as a plain string. Writes go to `user.json`:
 
 ```bash
-risuko config set max-concurrent-downloads '"5"'
-risuko config set dir '"/home/user/downloads"'
+risuko config set max-concurrent-downloads 8
+risuko config set dir /home/user/downloads
 ```
 
 ### config list
@@ -240,13 +237,13 @@ The RSS CLI commands call RPC methods (`risuko.addRssFeed`, `risuko.getRssFeeds`
 ### rss add
 
 ```bash
-risuko rss add <url> [--rpc-port PORT]
+risuko rss add <url> [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ### rss list
 
 ```bash
-risuko rss list [--rpc-port PORT] [--json]
+risuko rss list [--rpc-port PORT] [--rpc-secret SECRET] [--json]
 ```
 
 ### rss refresh
@@ -254,13 +251,13 @@ risuko rss list [--rpc-port PORT] [--json]
 Refresh all RSS feeds and trigger new downloads.
 
 ```bash
-risuko rss refresh [--rpc-port PORT]
+risuko rss refresh [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ### rss remove
 
 ```bash
-risuko rss remove <id> [--rpc-port PORT]
+risuko rss remove <id> [--rpc-port PORT] [--rpc-secret SECRET]
 ```
 
 ---
@@ -280,6 +277,8 @@ The engine runs until interrupted (`Ctrl+C`) or a `shutdown` command is received
 | `--rpc-port` | — | `16800` | RPC listen port |
 | `--verbose` | `-v` | `false` | Enable verbose logging |
 
+There is no `--rpc-secret` flag for `serve`; the RPC secret comes from the `rpc-secret` config key.
+
 ---
 
 ## shutdown
@@ -287,5 +286,5 @@ The engine runs until interrupted (`Ctrl+C`) or a `shutdown` command is received
 Request the engine to shut down via RPC.
 
 ```bash
-risuko shutdown [--rpc-port PORT]
+risuko shutdown [--rpc-port PORT] [--rpc-secret SECRET]
 ```

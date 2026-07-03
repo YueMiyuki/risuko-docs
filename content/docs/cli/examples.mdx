@@ -28,13 +28,14 @@ risuko download https://example.com/file.zip --proxy http://proxy.corp.com:8080
 ### With DNS over HTTPS
 
 ```bash
-risuko download https://example.com/file.zip \
-  --doh-url https://cloudflare-dns.com/dns-query --doh-bootstrap 1.1.1.1,1.0.0.1
+risuko config set doh-enable true
+risuko config set doh-url https://cloudflare-dns.com/dns-query
+risuko config set doh-bootstrap "1.1.1.1,1.0.0.1"
 ```
 
-DoH is applied to the engine globally (via `changeGlobalOption`) before the
-download is added, so it covers every HTTP request the engine makes for the
-session, not just this task.
+DoH is engine-wide configuration, not a per-download flag. The engine reads
+the `doh-*` keys (`doh-enable`, `doh-url`, `doh-bootstrap`, `doh-fallback`)
+at startup, so restart a running `risuko serve` for changes to take effect.
 
 ### With authentication
 
@@ -55,7 +56,7 @@ risuko download https://example.com/session-file.zip \
 ### Magnet link
 
 ```bash
-risuko download "magnet:?xt=urn:btih:abc123def456..." -d ~/Downloads/torrents
+risuko download "magnet:?xt=urn:btih:abc123..."
 ```
 
 ### .torrent file with seeding control
@@ -64,6 +65,26 @@ risuko download "magnet:?xt=urn:btih:abc123def456..." -d ~/Downloads/torrents
 risuko download ./linux-distro.torrent \
   --seed-ratio 2.0 \
   --seed-time 120
+```
+
+## Media (yt-dlp)
+
+URLs on known media hosts (YouTube, Twitch, Vimeo, bilibili, TikTok, X, and
+others) are routed through the yt-dlp media engine automatically. Media
+downloads accept only one URL.
+
+### Video with a format selector
+
+```bash
+risuko download "https://www.youtube.com/watch?v=dQw4w9WgXcQ" \
+  --media-format "bestvideo+bestaudio"
+```
+
+### Force a URL through yt-dlp
+
+```bash
+# For hosts not in the built-in allowlist
+risuko download https://example.com/watch/12345 --ytdlp
 ```
 
 ## Running as a Server
@@ -81,9 +102,25 @@ risuko serve --rpc-port 6800
 ### Remote downloads with a running server
 
 ```bash
-# In another terminal (or on another machine)
+# In another terminal
 risuko download https://example.com/file.zip --rpc-port 6800
 risuko status --rpc-port 6800
+```
+
+There is no host flag: the CLI always dials the host from the `rpc-host`
+config key (default `127.0.0.1`), and `serve` binds to it. To reach a server
+from another machine, set `rpc-host` in the config on both ends.
+
+### With an RPC secret
+
+```bash
+risuko config set rpc-secret mysecret
+
+# `serve` has no --rpc-secret flag; it reads the secret from config
+risuko serve
+
+# Clients pass --rpc-secret (or read it from the same config file)
+risuko status --rpc-secret mysecret
 ```
 
 ### Graceful shutdown
@@ -136,7 +173,7 @@ risuko config set dir '"/home/user/downloads"'
 ### Set max concurrent downloads
 
 ```bash
-risuko config set max-concurrent-downloads '"5"'
+risuko config set max-concurrent-downloads 5
 ```
 
 ### Check a specific setting
@@ -173,3 +210,7 @@ while IFS= read -r url; do
 done < urls.txt
 wait
 ```
+
+Run `risuko serve` (or the desktop app) first. With no engine running, each
+invocation starts its own temporary engine, and parallel invocations race for
+the RPC port.

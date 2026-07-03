@@ -10,7 +10,7 @@ succeeds.
 
 <Callout type="warn">
 Cloud upload sinks are currently exposed only through the **desktop app** (Preferences → Cloud Sinks).  
-The CLI and Node.js API do not yet expose
+The CLI and Node.js API do not yet expose sink management.
 </Callout>
 
 ## Supported Protocols
@@ -19,7 +19,7 @@ The CLI and Node.js API do not yet expose
 |----------|-------|
 | **WebDAV** | Single `PUT` per file with optional Basic auth. Supports skipping TLS verification for self-signed homelab servers. Issues `MKCOL` for missing parent directories. |
 | **S3 (and compatible)** | SigV4 with `UNSIGNED-PAYLOAD`. Files up to 5 GiB use a single `PUT`; larger files are sent through a 3-step multipart pipeline (Initiate → `UploadPart` × N → Complete) with a 64 MiB default part size and a best-effort `DELETE` to abort orphaned uploads on failure. Tested against AWS S3, MinIO, Backblaze B2 (S3 API), Cloudflare R2, Wasabi, and Garage. Supports both virtual-hosted and path-style addressing. |
-| **SFTP** | SSH File Transfer Protocol via `russh` + `russh-sftp`. Authenticates with a password or a PEM-encoded private key (OpenSSH or PKCS#1). Server host keys are pinned on first use (TOFU) and stored alongside the engine config; subsequent mismatches are refused. |
+| **SFTP** | SSH File Transfer Protocol via `russh` + `russh-sftp`. Authenticates with a password or a PEM-encoded private key (OpenSSH or PKCS#1). Server host keys are pinned on first use (TOFU) and stored in `sftp_known_hosts.json` under the per-user config directory; subsequent mismatches are refused. |
 | **FTP / FTPS** | Plain FTP or implicit-TLS FTPS via `suppaftp`. Anonymous mode is automatic when no username is supplied. Optional `insecure` flag skips TLS certificate verification. |
 
 ## Sink Configuration
@@ -56,8 +56,8 @@ protocol-specific config, a post-upload action, and an optional move target.
 | `host` | yes | Hostname or IP |
 | `port` | no | Defaults to `22` |
 | `username` | yes | SSH username |
-| `password` | conditional | Used when non-empty; otherwise the private key is tried. Persisted in the OS keychain |
-| `privateKey` | conditional | PEM-encoded OpenSSH or PKCS#1 private key. Persisted in the OS keychain |
+| `password` | conditional | Tried after the private key; a rejected password aborts the connection. Persisted in the OS keychain |
+| `privateKey` | conditional | PEM-encoded OpenSSH or PKCS#1 private key, tried first when set (must be unencrypted — passphrases are not supported). A rejected key falls back to the password. Persisted in the OS keychain |
 | `basePath` | no | Remote base directory; defaults to the login home |
 
 ### FTP
@@ -80,16 +80,19 @@ local file:
 | Action | Behaviour |
 |--------|-----------|
 | `keep` *(default)* | Leave the local file in place |
-| `trash` | Delete the local file |
+| `trash` | Delete the local file (a permanent delete, not the OS trash) |
 | `move` | Move the file into a configured directory (set `moveTarget`) |
 
-If a move target directory does not exist, Risuko creates it.
+If a move target directory does not exist, Risuko creates it. Moves across
+filesystems fall back to copy + delete.
 
 ## Routing: Default Sink + Rules
 
 When a download finishes, Risuko picks one sink (or none) using this order:
 
-1. **Per-task override** — if the task was started with an explicit sink id
+1. **Per-task override** — if the task carries the `upload-sink-id` option.
+   This fails closed: when the referenced sink no longer exists the file is
+   not uploaded at all, instead of being rerouted through rules or the default
 2. **First matching rule** — rules are evaluated in array order; the first
    one that matches wins
 3. **Default sink** — falls through to whichever sink was marked default
@@ -101,7 +104,7 @@ A rule can filter on:
 | `categories` | File-category names (`music`, `video`, `image`, `document`, `compressed`, `program`) |
 | `extensions` | Lowercase file extensions without a leading dot (e.g. `mp4`, `iso`) |
 | `minSize` / `maxSize` | Inclusive size bounds in bytes |
-| `taskKinds` | Task kinds: `Http`, `Torrent`, `M3u8`, `Ftp`, `Ed2k` |
+| `taskKinds` | Task kinds, matched case-insensitively: `http`, `media`, `torrent`, `ed2k`, `m3u8`, `ftp`, `adc`, `gnutella`, `g2`, `gift` |
 
 A rule with no fields matches everything. Disabled rules are skipped.
 
@@ -125,20 +128,26 @@ its status changes:
 | `engine:upload-start` | Job picked up by a worker |
 | `engine:upload-complete` | Sink reported success |
 | `engine:upload-error` | Sink returned an error |
-| `engine:upload-cancelled` | Job cancelled while uploading |
+| `engine:upload-cancelled` | Job cancelled — while still queued or in-flight |
 
 Live byte progress is folded into job snapshots returned by
 `list_upload_jobs` — the frontend does not receive a separate event per
 flushed chunk.
 
+Jobs can be cancelled at any point, including while still queued. Only the
+most recent 200 finished jobs (complete / failed / cancelled) are kept;
+older ones are pruned. Queued and active jobs are never evicted.
+
 ## Test Connectivity
 
 Every sink implements a quick `test()` round-trip:
 
-- **WebDAV** — `PROPFIND` against the resolved base URL
-- **S3** — `HEAD` against the bucket root
-- **SFTP** — open + close session
-- **FTP** — connect + `NOOP` + quit
+- **WebDAV** — `OPTIONS` against the base URL (a missing `DAV:` header is
+  only logged as a warning)
+- **S3** — signed `HEAD` against the bucket root; both `200` and `403` pass
+  (`403` means the endpoint and credentials work but `ListBucket` is denied)
+- **SFTP** — connect, authenticate, and probe the base path for existence
+- **FTP** — connect + login + `PWD`
 
 Use the **Test** button in the sink form to verify credentials before saving.
 
