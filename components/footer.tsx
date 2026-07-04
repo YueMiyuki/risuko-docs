@@ -24,6 +24,10 @@ const links: Record<
       external: true,
     },
   ],
+  Legal: [
+    { label: "Terms of Service", href: "/legal/terms" },
+    { label: "Privacy Policy", href: "/legal/privacy" },
+  ],
 };
 
 export function Footer() {
@@ -62,6 +66,18 @@ export function Footer() {
         <code className="inline-block px-3 py-1.5 text-xs font-mono text-muted-foreground bg-muted/30 border border-border/30 rounded-md">
           npm install -g @risuko/app
         </code>
+
+        <p className="mt-4 text-sm text-muted-foreground">
+          or{" "}
+          <a
+            href="https://github.com/YueMiyuki/Risuko/releases"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-primary hover:underline"
+          >
+            Download from GitHub
+          </a>
+        </p>
       </div>
 
       {/* Links */}

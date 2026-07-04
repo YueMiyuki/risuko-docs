@@ -25,6 +25,7 @@ const apiUrl = "https://api.risuko.app/";
 export const metadata: Metadata = {
   title: "Risuko API Status",
   description: "Current availability for the Risuko API.",
+  alternates: { canonical: "/status" },
 };
 
 async function checkApiStatus(): Promise<EndpointCheck> {

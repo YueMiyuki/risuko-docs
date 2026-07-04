@@ -47,6 +47,18 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+:root {
+  --primary: oklch(0.541 0.281 293.009);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.541 0.281 293.009);
+}
+
+.dark {
+  --primary: oklch(0.702 0.183 293.541);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.702 0.183 293.541);
+}
+
 html {
   scrollbar-gutter: stable;
 }

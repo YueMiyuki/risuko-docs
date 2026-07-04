@@ -2,9 +2,10 @@ import { RootProvider } from "fumadocs-ui/provider/next";
 import type { Metadata } from "next";
 import "./global.css";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { siteUrl } from "@/lib/shared";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://risuko.dev"),
+  metadataBase: new URL(siteUrl),
   icons: {
     icon: [
       {

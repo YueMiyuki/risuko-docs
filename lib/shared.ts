@@ -1,4 +1,5 @@
 export const appName = "Risuko";
+export const siteUrl = "https://risuko.app";
 export const docsRoute = "/docs";
 export const docsImageRoute = "/og/docs";
 export const docsContentRoute = "/llms.mdx/docs";
