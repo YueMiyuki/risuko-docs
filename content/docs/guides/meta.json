@@ -2,6 +2,7 @@
   "title": "Guides",
   "icon": "BookOpen",
   "pages": [
+    "desktop-app",
     "headless-server",
     "torrent",
     "batch-downloads",

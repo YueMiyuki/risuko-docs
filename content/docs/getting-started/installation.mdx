@@ -77,6 +77,12 @@ Download the latest release from [GitHub Releases](https://github.com/YueMiyuki/
 - **Windows**: `.setup.exe` (NSIS installer, per-user) or `.portable.exe` (no install)
 - **Android**: `.apk` (per-ABI builds)
 
+Tagged desktop releases can include Tauri updater artifacts. The app checks the
+Risuko update endpoint for the current target/architecture/version and verifies
+the signed updater payload before installing it. Automatic update checks are on
+by default on macOS and off by default on other platforms; change
+`auto-check-update` from Preferences or `user.json`.
+
 ### Linux: WebKitGTK rendering
 
 On Linux, Risuko sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` and

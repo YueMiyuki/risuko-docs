@@ -75,6 +75,11 @@ Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&pa
 | `risuko.getVersion` | — | Version object |
 | `risuko.getSessionInfo` | — | Session info object |
 
+`risuko.tellWaiting` returns waiting and paused tasks. Scheduled tasks are a
+desktop/Tauri list (`tell_scheduled`), not a JSON-RPC method. `risuko.getGlobalStat`
+does count scheduled tasks in `numWaiting`, matching aria2's broad
+"not active yet" bucket.
+
 ### Options
 
 | Method | Parameters | Returns |

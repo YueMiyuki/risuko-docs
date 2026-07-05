@@ -29,6 +29,7 @@ Risuko follows a layered architecture where the core download engine is fully de
       <div className="rounded-md border bg-fd-background px-3 py-2">Protocol Handlers<br/><span className="text-fd-muted-foreground text-xs">HTTP, BT (risuko-bt), ED2K, M3U8, FTP/SFTP, Media (yt-dlp), ADC/DC, Gnutella, G2, giFT, RSS, Upload Sinks</span></div>
       <div className="rounded-md border bg-fd-background px-3 py-2">RPC Server</div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Events Broadcast</div>
+      <div className="rounded-md border bg-fd-background px-3 py-2">Stats Manager<br/><span className="text-fd-muted-foreground text-xs">desktop download-history samples</span></div>
       <div className="rounded-md border bg-fd-background px-3 py-2">Traits<br/><span className="text-fd-muted-foreground text-xs">ConfigDir, Events, Storage</span></div>
     </div>
   </div>
@@ -40,7 +41,7 @@ The project is organized as a Cargo workspace with nine crates:
 
 | Crate | Type | Description |
 |-------|------|-------------|
-| `risuko-engine` | Library | Core engine — protocol handlers, RPC server, RSS, upload sinks |
+| `risuko-engine` | Library | Core engine — protocol handlers, RPC server, RSS, upload sinks, download stats store |
 | `risuko-bt` | Library | In-tree BitTorrent engine (v1, v2 per BEP 52, and hybrid) consumed by `risuko-engine` |
 | `risuko-http` | Library | Minimal `hyper` v1 HTTP client (TLS pool, SOCKS5/HTTP proxy, redirects, cookies, gzip/br/deflate decompression, pluggable DNS resolver with optional DNS-over-HTTPS) — no `reqwest` dep |
 | `risuko-cookies` | Library | Browser cookie extraction (Chromium, Firefox, Safari families) |

@@ -89,7 +89,7 @@ Defaults come from `src-tauri/risuko-engine/src/config/defaults.rs` and are stor
 | Key | Default | Description |
 |-----|---------|-------------|
 | `dir` | OS Downloads dir | Default download directory |
-| `max-concurrent-downloads` | `5` | Maximum number of parallel downloads |
+| `max-concurrent-downloads` | `5` | Maximum active non-torrent download workers. Queue reconciliation can preempt lower-priority non-torrent workers back to `waiting`; BitTorrent tasks are managed separately |
 | `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, `0` = unlimited; updates the `SpeedLimiter` immediately) |
 | `split` | `16` | Default number of HTTP connections for new downloads |
 | `seed-ratio` | `0` | Stop seeding once the upload/download ratio reaches this value (`0` = no ratio goal; checked every second) |

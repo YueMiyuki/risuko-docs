@@ -104,6 +104,7 @@ Options are passed as a flat object. String values follow the aria2 convention; 
 |-----|-------------|---------|
 | `dir` | Download directory | `"/downloads"` |
 | `out` | Output filename | `"file.zip"` |
+| `risuko-start-at` | Scheduling timestamp in Unix seconds. The engine honors it for non-torrent tasks, but the Node.js package does not expose a `tellScheduled` helper | `1783459200` |
 | `split` | Number of connections | `"16"` |
 | `header` | HTTP headers (array of strings, or one newline-separated string) | `["Cookie: foo=bar"]` |
 | `user-agent` | User agent string | `"MyApp/1.0"` |
@@ -186,7 +187,7 @@ const partial = await tellStatus(gid, ["status", "completedLength"]);
 | Field | Type | Description |
 |-------|------|-------------|
 | `gid` | `string` | Global ID |
-| `status` | `string` | `"active"`, `"waiting"`, `"paused"`, `"complete"`, `"removed"`, `"error"` |
+| `status` | `string` | `"active"`, `"waiting"`, `"paused"`, `"scheduled"`, `"complete"`, `"removed"`, `"error"` |
 | `kind` | `string` | Protocol family: `"http"`, `"torrent"`, `"ed2k"`, `"m3u8"`, `"ftp"`, `"media"`, ... |
 | `totalLength` | `string` | Total file size in bytes |
 | `completedLength` | `string` | Downloaded bytes |
@@ -196,6 +197,8 @@ const partial = await tellStatus(gid, ["status", "completedLength"]);
 | `connections` | `string` | Number of connections |
 | `dir` | `string` | Download directory |
 | `createdAt` | `string` | Creation time (ms since epoch) |
+| `startAt` | `string` | Scheduled start time in Unix seconds, present only for scheduled tasks |
+| `scheduleMissed` | `boolean` | Present and `true` when a scheduled task missed its 5-minute grace window |
 | `errorCode` | `string` | Error code (if status is `"error"`) |
 | `errorMessage` | `string` | Error description |
 
@@ -246,7 +249,7 @@ function getGlobalStat(): Promise<Record<string, unknown>>;
 ```js
 const stat = await getGlobalStat();
 // { downloadSpeed, uploadSpeed, numActive, numWaiting, numStopped, numStoppedTotal }
-// numWaiting counts waiting and paused downloads; all values are strings
+// numWaiting counts waiting, paused, and scheduled downloads; all values are strings
 ```
 
 ### getFiles

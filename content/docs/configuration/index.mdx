@@ -76,9 +76,23 @@ await changeGlobalOption({
 | Key | Default | Description |
 |-----|---------|-------------|
 | `dir` | OS default | Default download directory |
-| `max-concurrent-downloads` | `5` | Maximum parallel download tasks |
+| `max-concurrent-downloads` | `5` | Maximum active non-torrent download workers. The desktop app can raise this up to 10; the engine uses the value directly and preempts lower-priority non-torrent tasks back to `waiting` when the queue order requires it |
 | `continue` | `true` | Resume interrupted downloads |
-| `purge-record-on-start` | `false` | When the engine starts, drop completed/stopped task records from the session. On-disk files for stopped torrent tasks are preserved (the orphan-purge step is told to keep files for those info-hashes); HTTP/FTP/etc. payloads on disk are never touched |
+| `purge-record-on-start` | `false` | When the engine starts, drop completed/stopped task records from the session and clear desktop download-history stats. On-disk files for stopped torrent tasks are preserved (the orphan-purge step is told to keep files for those info-hashes); HTTP/FTP/etc. payloads on disk are never touched |
+
+### Desktop App
+
+These keys are read by the Tauri desktop app. They are stored in `user.json`
+and are not part of the engine's JSON-RPC surface.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `auto-check-update` | `true` on macOS, `false` elsewhere | Automatically check the Tauri updater endpoint for signed release updates |
+| `last-check-update-time` | `0` | Last update-check timestamp recorded by the app |
+| `legal-accepted` | `false` | First-launch Terms/Privacy acceptance flag; device-local and excluded from cloud sync |
+| `clipboard-watch` | `true` on desktop | Watch the clipboard for download links and show a prompt. Not created on Android |
+| `clipboard-watch-extensions` | archive, installer, media, document, `.torrent`, `meta4`, `metalink` extensions | HTTP(S) file extensions that trigger the clipboard prompt. Protocol links such as magnet, ED2K, FTP/SFTP, M3U8, and `thunder://` do not need an extension match |
+| `clipboard-watch-notice-seen` | `false` on desktop | Device-local flag for the one-time clipboard-watch notice |
 
 ### Connection
 

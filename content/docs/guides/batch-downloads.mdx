@@ -28,6 +28,32 @@ For `thunder://` links and `curl ...` paste-as-task lines, the directive is
 parsed off the line first; the remaining link or command is decoded
 afterwards.
 
+## Scheduled Starts
+
+The desktop app can hold URI tasks until a future time. In the Add Task dialog,
+set **Time** before submitting the batch; Risuko stores the Unix timestamp as
+the `risuko-start-at` task option and creates each non-torrent item with status
+`scheduled`.
+
+- Scheduled items live in the **Scheduled** list until their `startAt` time.
+- Torrent items ignore the schedule field and start immediately.
+- Existing non-torrent tasks can be scheduled, rescheduled, or started now from
+  the task action menu.
+- If the app misses the start time by more than 5 minutes, the task remains
+  scheduled with `scheduleMissed: true` and the desktop app offers to start the
+  missed tasks manually.
+
+## Queue Order And Concurrency
+
+Drag task rows, or use the keyboard reorder handle, to move tasks in the All,
+Active, Waiting, and Scheduled lists when default sorting is active and no
+filter is applied. The order is persisted through the engine session.
+
+For non-torrent tasks, `max-concurrent-downloads` is a strict queue cap. When a
+higher-priority waiting or due scheduled task should run, the engine preempts a
+lower-priority active worker back to `waiting` and restarts it later. BitTorrent
+tasks are managed by the torrent engine and are not preempted by this cap.
+
 ## CLI Batch Downloads
 
 Passing multiple URLs to a single `risuko download` does not batch: the URLs
