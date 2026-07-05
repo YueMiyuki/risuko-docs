@@ -1,0 +1,108 @@
+---
+title: Desktop App
+description: "Desktop-only workflows: scheduled starts, queue ordering, clipboard watch, updates, and download stats."
+---
+
+The desktop app layers Tauri-only workflows on top of the shared engine. These
+features are not exposed by the standalone CLI or the Node.js package unless
+noted below.
+
+## Scheduled Starts
+
+The Add Task dialog has a **Time** field for URI batches. When set, Risuko
+stores the Unix timestamp in the task option `risuko-start-at`, creates the
+task with status `scheduled`, and keeps it out of the active worker queue until
+the time arrives.
+
+- Torrent tasks are not schedulable. If a mixed batch contains torrents, the
+  scheduled time applies only to non-torrent items.
+- Existing non-torrent tasks can be scheduled or rescheduled from the task
+  action menu. Scheduled tasks show in the **Scheduled** list.
+- **Start Now** clears `startAt` and moves the task back to `waiting`.
+- If Risuko notices a due task within 5 minutes, it starts it. If the app was
+  not running long enough to miss that grace window, the task stays scheduled
+  with `scheduleMissed: true` and the app shows a missed-schedule dialog.
+
+Programmatic access is Tauri-only:
+
+```ts
+await invoke("set_task_schedule", { gid, startAt });
+await invoke("start_task_now", { gid });
+const tasks = await invoke("tell_scheduled", { offset: 0, num: 5000 });
+```
+
+## Queue Ordering
+
+Task rows can be dragged, or moved with the keyboard reorder handle, in the
+All, Active, Waiting, and Scheduled lists when default sorting is active and
+no text/tag filter is applied.
+
+The desktop drag path calls:
+
+```ts
+await invoke("reorder_tasks", {
+  gids: ["gid-a", "gid-b"],
+  targetGid: "gid-c",
+  after: true,
+});
+```
+
+The engine also exposes aria2-compatible `risuko.changePosition` over JSON-RPC
+for moving one waiting or paused task within the waiting queue.
+
+For non-torrent workers, the engine enforces the configured queue order. If a
+scheduled or reordered task should run ahead of an already-active lower-priority
+task, or if `max-concurrent-downloads` is lowered, the lower-priority task is
+preempted back to `waiting` and resumed later. BitTorrent tasks are managed by
+the torrent engine and are not preempted by this queue reconciliation.
+
+## Clipboard Watch
+
+On desktop platforms, Risuko watches the clipboard by default and shows a small
+prompt when copied text looks like a download link. Android does not run the
+clipboard monitor.
+
+The watcher always accepts magnet, ED2K, FTP/SFTP, ADC/DC, Gnutella, G2, giFT,
+M3U8, and `thunder://` links. For `http://` and `https://` links, it prompts
+only when the path ends with one of the configured extensions and is not a
+known media-site URL.
+
+The relevant user config keys are:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `clipboard-watch` | `true` on desktop | Enable the monitor |
+| `clipboard-watch-extensions` | Archive, installer, media, document, `.torrent`, `meta4`, and `metalink` extensions | Allowed HTTP(S) file extensions |
+| `clipboard-watch-notice-seen` | `false` on desktop | Local flag for the one-time notice |
+
+## Download Stats
+
+The **Stats** page records per-minute samples from active tasks and stores them
+under the `download_history_stats` storage key. It shows monthly received bytes,
+protocol totals, and per-minute speed history. Speed buckets are retained for
+365 days.
+
+Stats are desktop/Tauri data, not JSON-RPC or Node.js API data. The panel uses:
+
+```ts
+await invoke("record_download_stats_minute", { input });
+const view = await invoke("get_download_stats", { query });
+const data = await invoke("export_download_stats");
+await invoke("merge_download_stats", { data });
+await invoke("clear_download_stats");
+```
+
+When cloud sync includes the `stats` category, the desktop app exports and
+merges this same stats store. `purge-record-on-start` clears the stats store on
+startup along with completed/stopped task records.
+
+## Updates And First Run
+
+Tagged release builds can ship Tauri updater artifacts. The app checks
+`https://risuko.app/api/update/{{target}}/{{arch}}/{{current_version}}`; the
+release workflow assembles the signed `latest.json` manifest from per-platform
+fragments.
+
+`auto-check-update` defaults to `true` on macOS and `false` elsewhere. The
+first-launch legal gate is recorded with `legal-accepted`; this flag is local
+to the device and is excluded from cloud sync.
