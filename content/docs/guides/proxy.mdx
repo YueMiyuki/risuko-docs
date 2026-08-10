@@ -1,0 +1,136 @@
+---
+title: Proxy Support
+description: Configure one proxy for downloads, tracker updates, and desktop update checks.
+---
+
+Risuko has one optional application proxy. Enable it in **Preferences ->
+Advanced -> Proxy**, enter a complete proxy URL, and select the scopes that may
+use it. The proxy is opt-in per scope; it is never a system-wide proxy.
+
+The nested setting is stored as `proxy`. The engine-compatible `all-proxy` and
+`no-proxy` values are derived from it for download clients. The default scope
+selection is **Download**, **Update Trackers**, and **Update Application**. You
+can clear any scope independently.
+
+## Supported Traffic
+
+| Scope | Requests routed through the proxy |
+| --- | --- |
+| **Download** | HTTP/HTTPS downloads, Metalink files, HLS/m3u8 segments, and the initial media URL handed to yt-dlp |
+| **Update Trackers** | Tracker-list source requests; tracker announces and peer traffic remain direct |
+| **Update Application** | The signed desktop update manifest and package download |
+
+The native HTTP client evaluates bypass rules for every connection, including
+redirect targets. yt-dlp receives a proxy option for the submitted media URL
+and controls its own redirects and secondary requests, so media hosts beyond
+the initial URL may not follow Risuko's bypass list.
+
+For application updates, Risuko evaluates the bypass list against the signed
+manifest endpoint before starting the updater check. The Tauri updater then
+keeps that one direct-or-proxied choice for the selected package download and
+its redirects; it does not re-evaluate the bypass list for the package host.
+
+These protocols do not use the application proxy: BitTorrent peers and
+announces, DHT/LSD/uTP/UPnP, Usenet/NNTP, FTP/FTPS/SFTP, ed2k, ADC/DC,
+Gnutella/Gnutella2, RSS feeds, and cloud-upload providers. A VPN or operating
+system proxy is outside Risuko's configuration.
+
+<Callout type="warn">
+Selecting a proxy does not anonymize BitTorrent traffic. Peer connections and
+tracker announces still use their normal direct transports.
+</Callout>
+
+## Proxy URL
+
+The scheme is required. Risuko accepts `http`, `socks5`, and `socks5h`:
+
+```text
+http://proxy.example.com:8080
+socks5://127.0.0.1:1080
+socks5h://gateway.example.com:1080
+```
+
+`http://` uses an HTTP proxy (including CONNECT for HTTPS destinations).
+`socks5://` resolves the destination hostname locally; `socks5h://` sends the
+hostname to the proxy for remote resolution. Usernames and passwords may be
+included in the URL and must be percent-encoded when they contain reserved URL
+characters.
+
+`https://` proxy endpoints, SOCKS4, and SOCKS4A are not supported. They are
+rejected as invalid rather than silently converted to a direct connection.
+
+<Callout type="warn">
+Use `http://proxy.example.com:8080`, not `proxy.example.com:8080`. An invalid
+configured proxy is reported to the caller and never silently falls back to a
+direct download.
+</Callout>
+
+## Bypass Rules
+
+Enter comma- or newline-separated entries in **Bypass**. Matching is
+case-insensitive. Risuko trims entries, drops invalid values, and collapses
+duplicates when saving.
+
+| Entry | Matches |
+| --- | --- |
+| `example.com` | `example.com` and all subdomains, but not `notexample.com` |
+| `.example.com` | Same host/subdomain match; the leading dot is normalized away |
+| `example.com:8080` | That host and its subdomains on port 8080 |
+| `192.168.1.5` | The IPv4 literal |
+| `[2001:db8::5]` | The IPv6 literal (brackets are also accepted without a port) |
+| `10.0.0.0/8` or `fd00::/8` | Addresses inside the CIDR network |
+| `*` | Every destination bypasses the proxy |
+
+Every host, literal, or CIDR rule may include a port. For IPv6, bracket a
+literal before its port (`[2001:db8::5]:8443`) and put a CIDR prefix after the
+closing bracket (`[fd00::]/8:8443`).
+
+`localhost`, subdomains of `localhost`, and IPv4/IPv6 loopback literals are
+always contacted directly, even when the bypass field is empty. Invalid
+entries, such as `example.com:nope` or an out-of-range CIDR prefix, are
+ignored. CIDR entries match a destination written as an IP literal; Risuko
+does not resolve a hostname before comparing it to a CIDR rule.
+
+The same normalized bypass list is used by every selected scope. Native HTTP
+paths evaluate it for each request; update checks evaluate it when choosing the
+manifest route as described above. Port-specific rules can therefore bypass one
+connection while proxying another connection to the same host.
+
+## Per-Task Overrides
+
+The **Add Task** dialog has a task-level Proxy field. It overrides the global
+download proxy for that task. The CLI and JSON-RPC clients can set the same
+`all-proxy` option in task options:
+
+```bash
+risuko download https://example.com/file.zip \
+  --proxy http://proxy.example.com:8080
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "aria2.addUri",
+  "params": [["https://example.com/file.zip"], {"all-proxy": "socks5h://127.0.0.1:1080"}]
+}
+```
+
+Task-level values are validated by the native HTTP client. The global
+`no-proxy` list is used for global proxy decisions; yt-dlp's own networking
+remains governed by yt-dlp after it starts.
+
+## Troubleshooting
+
+1. Confirm the proxy URL includes a supported scheme and a reachable port.
+2. Confirm the relevant scope is selected. A configured server with no selected
+   scope is intentionally unused.
+3. Add the destination host or network to **Bypass** when it must connect
+   directly. Check the normalized value after saving.
+4. Run the **Health** network checks to separate a malformed URL from a
+   connectivity failure.
+5. For a hostname available only inside the proxy network, use `socks5h://` so
+   the proxy performs DNS resolution.
+
+The application proxy does not configure PAC/WPAD, detect OS proxy settings,
+chain multiple proxies, or proxy unsupported protocols listed above.

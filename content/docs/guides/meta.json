@@ -5,12 +5,14 @@
     "desktop-app",
     "headless-server",
     "torrent",
+    "usenet",
     "batch-downloads",
     "rss",
     "task-routing",
     "completion-scripts",
     "cloud-uploads",
     "health-checks",
-    "browser-cookies"
+    "browser-cookies",
+    "proxy"
   ]
 }

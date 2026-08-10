@@ -1,0 +1,218 @@
+---
+title: Usenet and NZB Downloads
+description: Configure NNTP providers and download NZB jobs safely with Risuko.
+---
+
+Risuko treats each NZB as one download task. The task keeps the parsed manifest,
+the selected provider profile, and resumable article metadata while the engine
+fetches, assembles, and verifies the files.
+
+## Import an NZB
+
+In the desktop or Android app, open **Add Task** and select one or more `.nzb`
+files. Risuko creates one task per file. A title in the NZB metadata becomes the
+task name; when the NZB has no title, Risuko uses the first file name.
+
+The app also accepts an HTTP(S) URL whose path ends in `.nzb`. Risuko fetches
+the manifest before creating the task. The URL is used only for ingestion and
+is not stored in the task. NZB imports are limited to 16 MiB.
+
+<Callout type="info">
+Configure at least one enabled provider profile before starting an NZB task.
+The normal queue, task priority, pause, resume, cancel, bandwidth, and
+concurrency controls apply to Usenet tasks too.
+</Callout>
+
+### JSON-RPC
+
+`risuko.addNzb` accepts the NZB bytes as standard base64. The second parameter
+is an optional object of non-secret task options.
+
+```bash
+NZB_B64="$(base64 < release.nzb | tr -d '\\n')"
+
+curl -X POST http://127.0.0.1:16800/jsonrpc \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg nzb \"$NZB_B64\" '{
+    jsonrpc: "2.0",
+    id: "1",
+    method: "risuko.addNzb",
+    params: [$nzb, {
+      dir: "/downloads",
+      "usenet-profile-id": "primary",
+      "usenet-cleanup-mode": "keep-all"
+    }]
+  }')"
+```
+
+The method returns a GID. It does not accept a URL or credentials. Configure
+provider credentials in the app's Provider Profiles editor so Risuko can keep
+them in the operating system keychain.
+
+## Provider Profiles
+
+Open **Preferences > Usenet** to add a profile. A profile contains one NNTP
+endpoint and these non-secret fields:
+
+| Field | Description |
+|-------|-------------|
+| Name | Label shown in the provider list |
+| NNTP host and port | The provider endpoint; common ports are `563` for implicit TLS and `119` for STARTTLS |
+| Connection security | `Implicit TLS`, `STARTTLS`, or `Plain NNTP` |
+| Authentication | Username and password, or anonymous access |
+| Enabled | Disabled profiles stay in settings but are not used |
+| Priority | Lower numbers are tried first; equal priorities share work |
+| Maximum connections | Per-profile connection cap, from 1 to 128 in the app |
+
+Risuko validates TLS certificates and hostnames with the normal system trust
+roots. STARTTLS begins as a plain NNTP connection, issues `STARTTLS`, and then
+performs the certificate-validated TLS handshake. Plain NNTP is disabled unless
+you explicitly acknowledge the warning for that profile. Plain connections do
+not protect credentials or article data.
+
+When several profiles are enabled, Risuko keeps the priority order and retries
+recoverable connection failures on another profile. New work rotates across
+equal-priority profiles, while a task retains a provider that continues to
+serve articles successfully. A missing article is treated as an article-level
+problem, so it does not mark the whole provider unhealthy. Other temporary
+failures place a provider in a short health cooldown before retrying it. The
+profile **Test** action checks the connection and server capabilities using the
+same connection cap as downloads.
+
+Removing a profile also removes its saved credentials from the local keychain.
+Existing tasks keep their profile reference, but they cannot run until that
+profile is restored or the task is changed to another available profile.
+
+## Download Stages and Resume
+
+The NZB download pipeline follows these steps:
+
+1. Parse the XML manifest and validate file and segment metadata.
+2. Fetch article bodies from the provider pool.
+3. Decode yEnc headers and payloads, checking declared sizes and CRC values.
+4. Assemble multipart files at their numbered offsets.
+5. Verify complete files and use PAR2 recovery blocks when data articles are missing or damaged.
+
+The task status exposes `usenetStage` for its connection, completion, and error
+state. Progress counts NZB article bytes. A successful PAR2 repair can finish a
+file even when some source articles were unavailable, so the task reaches 100
+percent only after the repaired outputs have been verified.
+
+Risuko writes partial outputs and atomic `*.resume.json` sidecars. The sidecar
+contains a manifest fingerprint and segment receipts, not credentials. Pause,
+cancel, a provider failure, or an application restart leaves enough state for a
+later retry. Output names use the normal collision-renaming rules.
+
+## PAR2 Repair and Error 554
+
+Risuko performs PAR2 verification and repair in process. It stages repaired
+files in a private directory and promotes them only after a second verification
+pass. Missing parity, malformed parity, cancellation, safety-limit failures,
+and insufficient recovery all keep the available partial files.
+
+Error `554` means that the PAR2 set cannot recover the missing data. For example:
+
+```
+PAR2 recovery is insufficient: 184 blocks are needed, but only 62 are available.
+```
+
+That set is short by 122 recovery blocks. The message is not an HTTP status and
+does not indicate a TLS or password problem. Add a provider with better article
+retention or completion, obtain a complete NZB with more parity, and retry the
+same task. If the task reports that partials were retained, keep the existing
+directory and retry; Risuko reuses verified segment receipts instead of starting
+from zero.
+
+The task's RPC status also includes this non-secret summary when recovery is
+insufficient:
+
+```json
+{
+  "usenetRepairFailure": {
+    "neededBlocks": 184,
+    "availableBlocks": 62,
+    "partialsRetained": true
+  }
+}
+```
+
+See the [error code reference](/docs/reference/error-codes#554) for the other
+Usenet failure classes.
+
+## Archive Safety
+
+Risuko has archive safety primitives for ZIP, RAR, 7z, tar, and tar streams
+compressed with gzip, bzip2, xz, or zstd. Before an extraction stage writes a
+member, those checks reject absolute paths, traversal, backslashes, control
+characters, reserved Windows names, links, and special files. They also check
+entry counts, expanded bytes, individual entry size, nesting depth, compression
+ratio, free-space reserve, and active processing time.
+
+The limits apply to the whole task, including PAR2 verification and repair.
+Paused time and time spent waiting for credentials do not count toward the
+active-time limit.
+
+### Platform Defaults
+
+| Limit | Desktop | Android |
+|-------|---------|---------|
+| Entries | 500,000 | 100,000 |
+| Total expanded data | 2 TiB | 256 GiB |
+| One entry | 512 GiB | 64 GiB |
+| Nesting depth | 16 | 16 |
+| Compression ratio | 1000:1 | 1000:1 |
+| Free-space reserve | 10 GiB | 2 GiB |
+| Active processing time | 6 hours | 2 hours |
+
+You can set global limits under **Preferences > Usenet > Archive safety**. A
+per-task `usenet-archive-limits` object can override selected values through
+`risuko.addNzb`. Any enforced safety limit above the platform default requires
+an explicit confirmation flag, `usenet-archive-limit-override-confirmed: true`.
+The app limits its controls to a finite four-times range. There is no unlimited
+override or unsafe-archive bypass.
+
+The current Add Task form uses the global archive policy. It does not expose
+per-task Usenet archive controls yet.
+
+<Callout type="warn">
+The current Usenet worker completes assembly and PAR2 verification, but it does
+not yet invoke archive extraction. Archive volumes remain on disk, even when a
+delete-volumes cleanup mode is selected. This preserves the inputs needed to
+inspect or retry a task after incomplete processing.
+</Callout>
+
+## Cleanup
+
+Cleanup runs only after the task has a verified successful result. Choose one of
+these global or per-task modes:
+
+| Value | Result after verified success |
+|-------|-------------------------------|
+| `keep-all` | Keep PAR2 files and archive volumes |
+| `delete-par2` | Delete PAR2 files; keep archive volumes |
+| `delete-par2-and-volumes` | Delete PAR2 files and archive volumes after verified extraction |
+
+The app currently writes `delete-par2-and-archives`; the engine accepts it as
+an alias for `delete-par2-and-volumes`. Risuko never deletes the task manifest
+or resume sidecars as part of cleanup. On a read-only destination, a cleanup
+failure does not turn an otherwise verified download into a retryable transfer
+failure.
+
+## Cloud Sync and Secrets
+
+The `usenet` sync category contains provider metadata, archive limits, the
+cleanup default, and the `usenet-limits-adjusted` marker. Profiles merge by
+stable profile ID and `updatedAt`; deletion tombstones are retained so a removed
+profile does not reappear on another device.
+
+The sync payload never contains usernames, passwords, archive passwords,
+provider health or cooldown state, task-specific overrides, article IDs, or
+filesystem paths. Credentials stay in the local OS keychain. When a synced
+archive limit cannot be accepted, Risuko clamps it and marks the category as
+adjusted.
+
+## Scope
+
+This feature downloads NZBs that you provide. It does not browse newsgroups,
+search Usenet, poll RSS for NZBs, control SABnzbd or NZBGet, invoke external
+extraction binaries, or provide an unsafe-archive override.

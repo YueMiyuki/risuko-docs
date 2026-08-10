@@ -98,6 +98,18 @@ Codes are assigned by pattern-matching the failure message text. Messages that m
 | 533 | SFTP Auth Failed | SFTP authentication failed. Check your credentials or private key. |
 | 534 | SFTP Host Key Failed | The SFTP server's host key could not be verified, or the pinned fingerprint changed (TOFU). |
 
+<span id="554" />
+
+### Usenet / NZB
+
+| Code | Name | Description |
+|------|------|-------------|
+| 550 | Usenet Authentication Failed | The NNTP provider rejected the configured credentials or the profile requires credentials that are not available in the local keychain. |
+| 551 | Usenet Article Unavailable | A required article is missing or unavailable from the provider. Risuko can try another enabled provider, but the task fails when no provider can supply the required article. |
+| 552 | Unsafe Archive Input | Risuko rejected an unsafe archive or PAR2 path, link, special file, or name. The input was kept for inspection. |
+| 553 | Archive Safety Limit Exceeded | Processing exceeded a configured archive or PAR2 safety limit, such as entry count, expanded size, compression ratio, free-space reserve, or active time. |
+| 554 | PAR2 Repair Failed | PAR2 could not reconstruct the missing or damaged files because recovery data was missing, invalid, or insufficient. Partial files are kept. |
+
 ### Media (yt-dlp)
 
 | Code | Name | Description |
@@ -123,6 +135,13 @@ Codes are assigned by pattern-matching the failure message text. Messages that m
 - **4xx File system errors**: Ensure the download directory exists and has write permissions.
 - **5xx Protocol errors**: Check protocol-specific settings (trackers, credentials, etc.).
 
+### Usenet Errors
+
+- **550**: Open **Preferences > Usenet**, confirm the provider host, port, security mode, and authentication details, then use **Test**. Credentials are stored in the local OS keychain and are not synchronized.
+- **551**: The provider does not have at least one article. Add another enabled provider with better retention or completion, then retry the task.
+- **552** and **553**: Risuko stopped before unsafe archive processing could continue. Review the archive and lower or correct the input; there is no unsafe-archive override.
+- **554**: Compare the required and available PAR2 recovery blocks in the error. If 184 blocks are needed and 62 are available, the set is short by 122 blocks. This is not an HTTP, TLS, or password error. Keep the partial files, add a provider with better completion or obtain a complete NZB/parity set, then retry.
+
 ### Viewing Logs
 
-For detailed error information, check the application log files. The log directory is shown under **Preferences > Advanced > App log path**. Log files are rotated daily and named `risuko.log.YYYY-MM-DD`.
+For detailed error information, check the application log files. The log directory is shown under **Preferences > Advanced > App log path**. New files are rotated daily and named `risuko.YYYY-MM-DD.log`; older installations may still contain readable legacy files named `risuko.log.YYYY-MM-DD`.

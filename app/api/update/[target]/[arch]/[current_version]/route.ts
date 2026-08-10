@@ -34,6 +34,12 @@ function isNewer(latest: string, current: string): boolean {
 // 204 = "you're up to date" in the Tauri updater protocol.
 const upToDate = () => new NextResponse(null, { status: 204 });
 
+const manifestUnavailable = () =>
+	NextResponse.json(
+		{ error: "Update manifest temporarily unavailable" },
+		{ status: 502, headers: { "Cache-Control": "no-store" } },
+	);
+
 export async function GET(
   _req: Request,
   {
@@ -50,11 +56,17 @@ export async function GET(
       headers: { "User-Agent": "risuko-updater" },
       next: { revalidate: MANIFEST_TTL_SECONDS },
     });
-    // 404 = no published release yet → nothing to update to.
-    if (!res.ok) return upToDate();
-    manifest = (await res.json()) as Manifest;
+    // 404 = no published release yet → nothing to update to. Other upstream
+    // failures are transient errors and must not look like a successful check.
+    if (res.status === 404) return upToDate();
+    if (!res.ok) return manifestUnavailable();
+    try {
+      manifest = (await res.json()) as Manifest;
+    } catch {
+      return manifestUnavailable();
+    }
   } catch {
-    return upToDate();
+    return manifestUnavailable();
   }
 
   if (!manifest?.version || !isNewer(manifest.version, current_version)) {

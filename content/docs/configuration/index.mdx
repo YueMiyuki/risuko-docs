@@ -87,7 +87,7 @@ and are not part of the engine's JSON-RPC surface.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `auto-check-update` | `true` on macOS, `false` elsewhere | Automatically check the Tauri updater endpoint for signed release updates |
+| `auto-check-update` | `false` | Automatically check the Tauri updater endpoint for signed release updates. Desktop-only and opt-in on every platform |
 | `last-check-update-time` | `0` | Last update-check timestamp recorded by the app |
 | `legal-accepted` | `false` | First-launch Terms/Privacy acceptance flag; device-local and excluded from cloud sync |
 | `clipboard-watch` | `true` on desktop | Watch the clipboard for download links and show a prompt. Not created on Android |
@@ -116,7 +116,8 @@ and are not part of the engine's JSON-RPC surface.
 | `user-agent` | Chrome UA string | Default user agent string |
 | `referer` | — | Default HTTP referer |
 | `header` | — | Default HTTP headers (array) |
-| `all-proxy` | — | Proxy server URL. Accepts `http://`, `socks5://`, or `socks5h://` (use `socks5h` to resolve hostnames through the proxy). `https://` proxies are not supported |
+| `all-proxy` | — | Proxy server URL. Accepts `http://`, `socks5://`, or `socks5h://` (use `socks5h` to resolve hostnames through the proxy). `https://` proxies are not supported. See the [Proxy Support guide](/docs/guides/proxy) |
+| `no-proxy` | — | Bypass list for `all-proxy`, one entry per line (comma-separated also accepted). Accepts hosts (`example.com`, matching subdomains too), `host:port`, IP literals, CIDR ranges (`10.0.0.0/8`), and `*` to bypass everything. Matching is case-insensitive; `localhost`, `*.localhost`, and loopback addresses are always bypassed. Unparseable entries are dropped |
 | `load-cookies` | — | Path to a Netscape/Mozilla format `cookies.txt` (also accepts curl/wget output) loaded into the per-task cookie jar |
 | `netrc-path` | `~/.netrc` (`%USERPROFILE%\_netrc` on Windows) | Override the `.netrc` file used to inject HTTP Basic auth when a URL has no embedded credentials |
 | `no-netrc` | `false` | Skip `.netrc` lookup entirely |
@@ -256,6 +257,58 @@ Run a script after every download finishes (success or failure). Per-task overri
 | `completion-script-args` | — | Whitespace-tokenised arguments template. Supported placeholders inside any token: `{path}` (final file path), `{hash}` (BitTorrent info hash; empty for non-torrent tasks), `{status}` (`complete` / `error`). The same values are also exported as `RISUKO_PATH`, `RISUKO_HASH`, `RISUKO_STATUS` env vars |
 | `completion-script-timeout-ms` | `30000` | Per-invocation timeout in milliseconds. Clamped to `1000`–`300000` (5 minutes). stdout/stderr captured into the log are truncated to 8 KiB |
 
+### Usenet / NZB
+
+See the [Usenet and NZB Downloads guide](/docs/guides/usenet) for the provider
+setup and recovery workflow. These settings are used for new NZB tasks; task
+options snapshot the selected profile reference, cleanup policy, and any
+confirmed archive-limit override.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `usenet-profiles` | `[]` | Non-secret provider profile metadata. Each profile has an ID, name, host, port, security mode, enabled state, priority, connection cap, plain-NNTP opt-in, and update timestamp. Usernames and passwords are kept in the OS keychain. |
+| `usenet-archive-limits` | Platform defaults | Task-wide archive and PAR2 safety limits. Desktop defaults: 500,000 entries, 2 TiB total expansion, 512 GiB per entry, depth 16, 1000:1 ratio, 10 GiB reserve, 6 active hours. Android defaults: 100,000, 256 GiB, 64 GiB, depth 16, 1000:1, 2 GiB, 2 active hours. |
+| `usenet-cleanup-mode` | `keep-all` | Successful cleanup policy: `keep-all`, `delete-par2`, or `delete-par2-and-volumes`. `delete-par2-and-archives` remains accepted as a legacy alias. |
+| `usenet-limits-adjusted` | `false` | Set when a synchronized archive-limit value was invalid or had to be reduced for this device. |
+
+Provider profiles use camel-case fields inside the `usenet-profiles` array:
+
+```json
+[
+  {
+    "id": "primary",
+    "name": "Primary provider",
+    "host": "news.example.net",
+    "port": 563,
+    "securityMode": "implicit-tls",
+    "enabled": true,
+    "priority": 0,
+    "maxConnections": 4,
+    "allowPlain": false,
+    "updatedAt": 1765000000000
+  }
+]
+```
+
+Valid `securityMode` values are `implicit-tls`, `starttls`, and `plain`.
+Plain NNTP also needs `allowPlain: true`; the app requires a separate user
+acknowledgement before it saves that state. Lower `priority` values run first.
+
+The following option keys may be set through `risuko.addNzb`. The current Add
+Task form uses the global Usenet archive policy and does not expose per-task
+archive controls yet:
+
+| Key | Description |
+|-----|-------------|
+| `usenet-profile-id` | Restrict the task to one configured provider profile. Omit it to use the enabled provider pool. |
+| `usenet-cleanup-mode` | Override the global cleanup policy for this task. |
+| `usenet-archive-limits` | Object with any of `maxEntries`, `maxExpandedBytes`, `maxEntryBytes`, `maxNestingDepth`, `maxCompressionRatio`, `freeSpaceReserveBytes`, and `maxActiveSeconds`. |
+| `usenet-archive-limit-override-confirmed` | Required when a per-task override raises an enforced safety limit above its platform default. |
+
+Task options must not include a username, password, archive password, or
+credential-bearing provider object. Risuko removes those values before it saves
+the task or returns it through RPC.
+
 ### Saved Credentials
 
 | Key | Default | Description |
@@ -294,6 +347,7 @@ are routed over JSON-RPC.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `log-dir-override` | `""` | Override the directory where rolling log files are written. Must be an absolute path to a writable directory. When empty (the default), logs go to the OS-specific app log directory. Useful on Android to redirect logs to a publicly accessible path |
+| `log-level` | `warn` | Verbosity of the tracing subscriber. One of `error`, `warn`, `info`, `debug`, `trace` (these are `tracing_subscriber::EnvFilter` directives). Takes effect only after an app restart, because the subscriber is initialised once at startup |
 
 ## Startup-only Keys
 

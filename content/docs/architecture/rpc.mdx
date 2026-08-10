@@ -45,6 +45,7 @@ Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&pa
 |--------|-----------|---------|
 | `risuko.addUri` | `[uris[], options?]` | GID string |
 | `risuko.addTorrent` | `[base64Data, uris[], options?]` | GID string |
+| `risuko.addNzb` | `[base64NzbData, options?]` | GID string |
 | `risuko.addEd2k` | `[uri, options?]` | GID string |
 | `risuko.addMedia` | `[url, options?]` | GID string |
 | `risuko.pause` | `[gid]` | GID string |
@@ -58,6 +59,28 @@ Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&pa
 | `risuko.changePosition` | `[gid, pos?, how?]` | New position |
 
 `risuko.addMedia` accepts URLs from supported media sites (downloaded via yt-dlp). Other URLs are rejected with "Not a supported media URL" unless the `force-ytdlp` option is set. Methods that take a `gid` also accept a unique GID prefix of at least 4 characters.
+
+`risuko.addNzb` accepts a standard-base64 NZB document, not a URL. It creates
+one Usenet task from the parsed manifest. The options object may select a
+non-secret provider reference or cleanup policy, but it must not contain
+provider credentials or archive passwords. Configure those in the desktop
+app's Provider Profiles editor instead.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "nzb-1",
+  "method": "risuko.addNzb",
+  "params": [
+    "PD94bWwgdmVyc2lvbj0iMS4wIj8+Li4u",
+    {
+      "dir": "/downloads",
+      "usenet-profile-id": "primary",
+      "usenet-cleanup-mode": "keep-all"
+    }
+  ]
+}
+```
 
 ### Queries
 

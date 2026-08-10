@@ -105,6 +105,33 @@ After a torrent download completes, seeding behavior depends on the seed options
 4. Otherwise seeding stops when `seed-time` elapses or `seed-ratio` is reached (whichever comes first)
 5. `onDownloadComplete` fires when seeding is done (or immediately if no seeding was requested)
 
+## Usenet / NZB
+
+**Modules**: `engine/usenet.rs`, `engine/usenet_worker.rs`, and
+`engine/usenet_transport.rs`
+
+The Usenet handler creates one `usenet` task for each parsed NZB manifest. It
+validates the XML file list and segment numbers, fetches articles through the
+configured NNTP provider pool, decodes yEnc, assembles multipart output, and
+uses in-process PAR2 verification and repair when possible. The task stores a
+non-secret manifest and durable resume receipts; provider passwords remain in
+the platform keychain.
+
+Provider profiles carry one NNTP endpoint. The pool tries lower numeric
+priorities first, rotates equal-priority profiles, retains a healthy warm
+connection, and fails over on recoverable connection or article failures.
+Implicit TLS and STARTTLS use normal hostname and certificate validation. Plain
+NNTP requires an explicit per-profile opt-in.
+
+Archive safety limits apply across yEnc assembly and PAR2 processing. The
+extraction primitives reject unsafe paths, links, special files, traversal,
+archive-bomb limits, and finite resource limits. The worker does not currently
+invoke archive extraction, so archive volumes remain until a verified extraction
+stage is available.
+
+See the [Usenet and NZB Downloads guide](/docs/guides/usenet) for provider
+setup, PAR2 recovery, cleanup, and platform limits.
+
 ## ED2K
 
 **Module**: `engine/ed2k/`
@@ -244,6 +271,7 @@ The Tauri `add_uri` command and the desktop **Add Task** modal sniff the URI sch
 | HTTP/HTTPS | `http(s)://` | `risuko.addUri` | `addUri` | `risuko download <url>` |
 | BitTorrent (.torrent) | — (file path) | `risuko.addTorrent` | `addTorrent` | `risuko download <file.torrent>` (auto-detected) |
 | BitTorrent (magnet) | `magnet:` | `risuko.addUri` (sniffed) | `addMagnet` | `risuko download <magnet>` |
+| Usenet / NZB | local `.nzb` in the app, or an HTTP(S) URL ending in `.nzb` | `risuko.addNzb` (base64 data) | Not available | Not available |
 | ED2K | `ed2k://` | `risuko.addEd2k` | `addEd2k` | — |
 | M3U8/HLS | `*.m3u8`, `*.m3u` | `risuko.addUri` (sniffed) | `addM3u8` | — |
 | FTP/SFTP | `ftp(s)://`, `sftp://` | `risuko.addUri` (sniffed) | `addFtp` | — |
