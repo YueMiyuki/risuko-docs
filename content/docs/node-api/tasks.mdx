@@ -108,7 +108,8 @@ Options are passed as a flat object. String values follow the aria2 convention; 
 | `split` | Number of connections | `"16"` |
 | `header` | HTTP headers (array of strings, or one newline-separated string) | `["Cookie: foo=bar"]` |
 | `user-agent` | User agent string | `"MyApp/1.0"` |
-| `all-proxy` | Proxy URL | `"http://proxy:8080"` |
+| `all-proxy` | HTTP-profile proxy URL | `"http://proxy:8080"` |
+| `p2p-proxy` | P2P TCP proxy URL (BitTorrent / eD2K / Gnutella) | `"socks5h://127.0.0.1:1080"` |
 | `referer` | HTTP referer | `"https://example.com"` |
 | `seed-ratio` | BT seed ratio | `"1.0"` |
 | `seed-time` | BT seed time (minutes) | `"60"` |
@@ -161,6 +162,51 @@ await unpause(gid);   // Resume
 await remove(gid);    // Remove
 ```
 
+## Editing a running task
+
+### updateTask
+
+Apply a structured patch to an existing task. Unlike `changeOption`, this can
+replace URIs, move the save path, rename the output, and append BitTorrent
+trackers, and it will restart an active worker when those fields require it.
+
+```ts
+function updateTask(
+  gid: string,
+  patch: {
+    uris?: string[];
+    dir?: string;
+    out?: string;
+    trackers?: string[];
+    options?: Record<string, unknown>;
+  }
+): Promise<{
+  restarted: boolean;
+  trackersAdded: number;
+  progressPreserved: boolean;
+}>;
+```
+
+```js
+const outcome = await updateTask(gid, {
+  uris: ["https://mirror.example.com/file.zip"],
+  dir: "/downloads",
+  options: { split: "8" },
+});
+console.log(outcome.restarted, outcome.progressPreserved);
+```
+
+- At least one of `uris`, `dir`, `out`, `trackers`, or `options` must be set.
+- Finished tasks (complete / removed) cannot be edited; errored tasks can.
+- HTTP, media, m3u8, FTP, and similar tasks accept URI, directory, and filename
+  changes. Thunder links in `uris` are decoded to HTTP. Changing the primary
+  URI, `dir`, or `out` on an active task stops the worker, relocates any
+  `.part` file when possible, and starts it again.
+- Torrent tasks reject URI, `dir`, and `out` changes. `trackers` appends extra
+  announce URLs (comma or newline separated) and is persisted on `bt-tracker`.
+- Startup-only option keys (`rpc-*`, `pbh-*`, listen ports, most `bt-*`) are
+  rejected on the patch. The desktop **Edit…** dialog uses this API.
+
 ## Queries
 
 ### tellStatus
@@ -188,7 +234,7 @@ const partial = await tellStatus(gid, ["status", "completedLength"]);
 |-------|------|-------------|
 | `gid` | `string` | Global ID |
 | `status` | `string` | `"active"`, `"waiting"`, `"paused"`, `"scheduled"`, `"complete"`, `"removed"`, `"error"` |
-| `kind` | `string` | Protocol family: `"http"`, `"torrent"`, `"ed2k"`, `"m3u8"`, `"ftp"`, `"media"`, ... |
+| `kind` | `string` | Protocol family: `"http"`, `"media"`, `"torrent"`, `"ed2k"`, `"m3u8"`, `"ftp"`, `"metalink"`, `"usenet"`, `"adc"`, `"gnutella"`, `"g2"`, or `"gift"` |
 | `totalLength` | `string` | Total file size in bytes |
 | `completedLength` | `string` | Downloaded bytes |
 | `downloadSpeed` | `string` | Current download speed (bytes/s) |
@@ -202,7 +248,7 @@ const partial = await tellStatus(gid, ["status", "completedLength"]);
 | `errorCode` | `string` | Error code (if status is `"error"`) |
 | `errorMessage` | `string` | Error description |
 
-BitTorrent tasks include additional fields such as `infoHash`, `bittorrent` (name, comment, announce list), `seeder`, and `numSeeders`. Multi-connection HTTP downloads include `chunkProgress`, an array of `{ completedLength, totalLength }` per chunk.
+BitTorrent tasks include additional fields such as `infoHash`, `bittorrent` (the torrent name is nested at `bittorrent.info.name`, alongside `comment` and `announceList`), `seeder`, and `numSeeders`. Multi-connection HTTP downloads include `chunkProgress`, an array of `{ completedLength, totalLength }` per chunk.
 
 ### tellActive
 
@@ -267,6 +313,12 @@ Get connected peers for a BitTorrent download. Returns an empty array for non-Bi
 ```ts
 function getPeers(gid: string): Promise<Record<string, unknown>[]>;
 ```
+
+Each peer object includes aria2-compatible fields (`ip`, `port`, `amChoking`,
+`peerChoking`, `seeder`) plus Aria2Next-style extras used by PeerBanHelper:
+`peerId`, `peerClientName`, `percent`, `amInterested`, `peerInterested`,
+`downloadSpeed`, `uploadSpeed`, `downloaded`, `uploaded`, `progress`,
+`incoming`, `snubbed`, `handshaking`, `optimisticUnchoke`, and `bitfield`.
 
 ### getUris
 

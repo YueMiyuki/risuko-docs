@@ -116,11 +116,23 @@ and are not part of the engine's JSON-RPC surface.
 | `user-agent` | Chrome UA string | Default user agent string |
 | `referer` | — | Default HTTP referer |
 | `header` | — | Default HTTP headers (array) |
-| `all-proxy` | — | Proxy server URL. Accepts `http://`, `socks5://`, or `socks5h://` (use `socks5h` to resolve hostnames through the proxy). `https://` proxies are not supported. See the [Proxy Support guide](/docs/guides/proxy) |
-| `no-proxy` | — | Bypass list for `all-proxy`, one entry per line (comma-separated also accepted). Accepts hosts (`example.com`, matching subdomains too), `host:port`, IP literals, CIDR ranges (`10.0.0.0/8`), and `*` to bypass everything. Matching is case-insensitive; `localhost`, `*.localhost`, and loopback addresses are always bypassed. Unparseable entries are dropped |
 | `load-cookies` | — | Path to a Netscape/Mozilla format `cookies.txt` (also accepts curl/wget output) loaded into the per-task cookie jar |
 | `netrc-path` | `~/.netrc` (`%USERPROFILE%\_netrc` on Windows) | Override the `.netrc` file used to inject HTTP Basic auth when a URL has no embedded credentials |
 | `no-netrc` | `false` | Skip `.netrc` lookup entirely |
+
+### Proxy
+
+See the [Proxy Support guide](/docs/guides/proxy) for URL schemes, scopes, and bypass syntax.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `all-proxy` | — | HTTP-profile proxy server URL derived from `proxy.http`. Accepts `http://`, `socks5://`, or `socks5h://`. Used for HTTP/HTTPS, Metalink, HLS, yt-dlp, FTP/FTPS/SFTP, and Usenet when the **Download** scope is selected |
+| `no-proxy` | — | Bypass list for `all-proxy`, one entry per line (comma-separated also accepted). Accepts hosts (`example.com`, matching subdomains too), `host:port`, IP literals, CIDR ranges (`10.0.0.0/8`), and `*` to bypass everything. Matching is case-insensitive; `localhost`, `*.localhost`, and loopback addresses are always bypassed. Unparseable entries are dropped |
+| `p2p-proxy` | — | P2P TCP proxy URL derived from `proxy.p2p`. Same schemes as `all-proxy`. Used for BitTorrent TCP peers and HTTP tracker announces, eD2K TCP, Gnutella, G2, and giFT |
+| `p2p-no-proxy` | — | Bypass list for `p2p-proxy` (same syntax as `no-proxy`) |
+| `p2p-udp-proxy` | — | Optional P2P UDP proxy URL. When empty, UDP traffic reuses `p2p-proxy`. SOCKS5/SOCKS5H is required for DHT, UDP trackers, µTP, and Kad; an HTTP proxy cannot carry UDP |
+| `p2p-udp-no-proxy` | — | Bypass list for `p2p-udp-proxy` |
+| `proxy` | nested object | Desktop/UI preference. Canonical shape is `{ http: { enable, server, bypass, scope }, p2p: { enable, server, bypass, udp: { server, bypass } } }`. The engine reads the flattened keys above |
 
 ### DNS over HTTPS
 
@@ -152,6 +164,7 @@ next connection without an engine restart.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `connect-timeout` | `60` | Connect timeout in seconds for HTTP/HTTPS/FTP |
+| `nzb-body-timeout` | `30` | Maximum idle time in seconds between chunks while fetching an NZB URL body; applies only to URL-based NZB ingestion |
 | `lowest-speed-limit` | `0` | Stalled-transfer threshold in bytes/s. If the EMA stays below this for `lowest-speed-limit-timeout`, the worker is aborted (and restarted when auto-retry is enabled). `0` disables the watchdog |
 | `lowest-speed-limit-timeout` | `30` | How many seconds the transfer must stay below `lowest-speed-limit` before it is considered stalled |
 | `uri-selector` | `feedback` | Mirror selection strategy when a task has multiple URIs: `feedback` (drop slow/failing mirrors), `inorder` (try left-to-right), or `adaptive` (prefer fastest) |
@@ -199,13 +212,15 @@ the swarm spends minutes warming up again. Tasks whose `kind` is not in
 | `seed-time` | `0` | Seed for this many minutes after completing (0 = no time limit) |
 | `bt-tracker` | — | Additional tracker URLs (comma-separated) |
 | `bt-max-peers-per-torrent` | `100` | Max concurrent peer connections per torrent (engine restart) |
-| `bt-max-outstanding-per-peer` | `128` | Max pipelined chunk requests per peer (engine restart) |
+| `bt-max-outstanding-per-peer` | `0` | Per-peer pipelined chunk-request cap (engine restart); `0` uses adaptive control starting at 6 and growing up to 96, while an explicit value is capped at 256 |
 | `bt-upload-rate-limit` | `0` | Seeding upload rate cap in bytes/s (0 = unlimited) (engine restart) |
 | `bt-enable-upnp` | `true` | Map the listen port on the router via UPnP IGD (engine restart) |
 | `bt-upnp-lease` | `300` | UPnP mapping lease in seconds (engine restart) |
 | `bt-enable-lsd` | `true` | BEP-14 Local Service Discovery via multicast (engine restart) |
 | `bt-encryption-policy` | `prefer` | MSE/PE policy: `plaintext`, `prefer`, or `require` (engine restart) |
 | `bt-listen-v6` | `false` | Also bind an IPv6 TCP listener on the same port (engine restart) |
+| `ed2k-enable-kad` | `true` | Enable client-only eMule Kad source discovery over UDP (engine restart) |
+| `ed2k-kad-port` | `4672` | Local Kad UDP port; must be in `1..=65535` (engine restart) |
 | `bt-create-subfolder` | `true` | When `true`, multi-file torrents and magnets are placed under `<dir>/<name>/`. When `false`, files are written directly into `dir`. Single-file torrents are unaffected. Read on each task add (no restart needed); accepted as a per-task option override |
 | `bt-save-metadata` | `true` | When `true` and a magnet link is added, the engine resolves the torrent metadata first and writes a synthesized `.torrent` file to the task's `dir` before starting the download. Has no effect when adding a `.torrent` file directly |
 
@@ -220,8 +235,11 @@ backwards compatibility but currently have no effect.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `rpc-listen-port` | `16800` | RPC server port |
-| `rpc-host` | `127.0.0.1` | RPC bind address (set to `0.0.0.0` for LAN access) |
+| `rpc-host` | `127.0.0.1` | RPC bind address (set to `0.0.0.0` for LAN access). Also used by the PeerBanHelper listener when that API is enabled |
 | `rpc-secret` | — | RPC authentication token |
+| `pbh-enable` | `false` | Start a second JSON-RPC listener in Aria2Next compatibility mode so [PeerBanHelper](https://github.com/PBH-BTN/PeerBanHelper) can monitor and ban BitTorrent peers (engine restart) |
+| `pbh-listen-port` | `16801` | PeerBanHelper RPC port (engine restart). In PeerBanHelper, add an Aria2Next downloader pointed at `http://127.0.0.1:<port>/jsonrpc` |
+| `pbh-rpc-secret` | — | Token required as `token:<secret>` on the PeerBanHelper listener (engine restart) |
 
 ### YouTube (yt-dlp)
 
@@ -356,8 +374,9 @@ runtime is accepted (the value is persisted) but does **not** take effect
 until the engine is restarted (Quit & relaunch the desktop app, or restart
 `risuko serve`):
 
-`dht-listen-port`, `ed2k-port`, `listen-port`, `rpc-listen-port`,
-`rpc-secret`, `bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
+`dht-listen-port`, `ed2k-enable-kad`, `ed2k-kad-port`, `ed2k-port`, `listen-port`, `rpc-listen-port`,
+`rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`,
+`bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
 `bt-upload-rate-limit`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
 `bt-encryption-policy`, `bt-listen-v6`.
 

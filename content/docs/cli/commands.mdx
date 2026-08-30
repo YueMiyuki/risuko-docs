@@ -280,7 +280,7 @@ The engine runs until interrupted (`Ctrl+C`) or a `shutdown` command is received
 | `--rpc-port` | — | `16800` | RPC listen port |
 | `--verbose` | `-v` | `false` | Enable verbose logging |
 
-There is no `--rpc-secret` flag for `serve`; the RPC secret comes from the `rpc-secret` config key.
+There is no `--rpc-secret` flag for `serve`; the RPC secret comes from the `rpc-secret` config key. The optional PeerBanHelper listener (`pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`) is also read from config and started alongside the primary RPC when enabled.
 
 ---
 

@@ -13,7 +13,7 @@ Risuko can run as a headless download server, accepting commands over JSON-RPC. 
 risuko serve --rpc-port 16800
 ```
 
-`serve` runs in the foreground until it receives Ctrl+C or an RPC `risuko.shutdown` request. `--rpc-port` defaults to `16800`; pass `-v`/`--verbose` for debug logging. There is no `--rpc-secret` flag — the server reads its secret from config (see [Remote Access](#remote-access)).
+`serve` runs in the foreground until it receives Ctrl+C or an RPC `risuko.shutdown` request. `--rpc-port` defaults to `16800`; pass `-v`/`--verbose` for debug logging. There is no `--rpc-secret` flag — the server reads its secret from config (see [Remote Access](#remote-access)). When `pbh-enable` is set in config, a second Aria2Next-compat RPC for PeerBanHelper is bound to `pbh-listen-port` on the same `rpc-host`.
 
 ### Via Node.js
 

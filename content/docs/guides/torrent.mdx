@@ -147,3 +147,23 @@ risuko peers <gid>
 ```js
 const peers = await getPeers(gid);
 ```
+
+## P2P Proxy
+
+BitTorrent traffic uses the **P2P proxy** profile, not the HTTP download
+proxy. Configure it in **Preferences -> Advanced -> Proxy**. SOCKS5 or SOCKS5H
+is required for DHT, UDP trackers, and µTP; an HTTP proxy only covers TCP
+peers and HTTP tracker announces. See the [Proxy Support guide](/docs/guides/proxy).
+
+## Peer blocklist and PeerBanHelper
+
+`risuko.setBtPeerBlocklist` (also `aria2.setBtPeerBlocklist`) full-replaces a
+process-wide IPv4/IPv6 CIDR blocklist. Matching connected peers are
+disconnected immediately.
+
+To drive that list from [PeerBanHelper](https://github.com/PBH-BTN/PeerBanHelper),
+enable **PeerBanHelper** in **Preferences -> Advanced**, set a listen port
+(default `16801`) and RPC token, then add an Aria2Next downloader in
+PeerBanHelper pointed at `http://127.0.0.1:16801/jsonrpc`. The extra listener
+is startup-only and reports `product: "aria2-next"` from `getVersion`. See the
+[RPC Protocol](/docs/architecture/rpc#peerbanhelper--aria2next-listener).

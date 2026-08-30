@@ -45,6 +45,7 @@ Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&pa
 |--------|-----------|---------|
 | `risuko.addUri` | `[uris[], options?]` | GID string |
 | `risuko.addTorrent` | `[base64Data, uris[], options?]` | GID string |
+| `risuko.addMetalink` | `[base64MetalinkData, options?]` | GID string |
 | `risuko.addNzb` | `[base64NzbData, options?]` | GID string |
 | `risuko.addEd2k` | `[uri, options?]` | GID string |
 | `risuko.addMedia` | `[url, options?]` | GID string |
@@ -57,8 +58,11 @@ Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&pa
 | `risuko.unpauseAll` | — | `"OK"` |
 | `risuko.forcePauseAll` | — | `"OK"` |
 | `risuko.changePosition` | `[gid, pos?, how?]` | New position |
+| `risuko.updateTask` | `[gid, patch]` | `{ restarted, trackersAdded, progressPreserved }` |
 
 `risuko.addMedia` accepts URLs from supported media sites (downloaded via yt-dlp). Other URLs are rejected with "Not a supported media URL" unless the `force-ytdlp` option is set. Methods that take a `gid` also accept a unique GID prefix of at least 4 characters.
+
+`risuko.addMetalink` accepts a standard-base64 Metalink document (`.meta4` / `.metalink`). `risuko.updateTask` applies a `{ uris, dir, out, trackers, options }` patch; see [updateTask](/docs/node-api/tasks#updatetask).
 
 `risuko.addNzb` accepts a standard-base64 NZB document, not a URL. It creates
 one Usenet task from the parsed manifest. The options object may select a
@@ -93,6 +97,7 @@ app's Provider Profiles editor instead.
 | `risuko.getGlobalStat` | — | Stat object |
 | `risuko.getFiles` | `[gid]` | File array |
 | `risuko.getPeers` | `[gid]` | Peer array |
+| `risuko.setBtPeerBlocklist` | `[entries[]]` | `{ revision, ruleCount, disconnectedPeers, removedPeers }` |
 | `risuko.getUris` | `[gid]` | URI array |
 | `risuko.getServers` | `[gid]` | Server array |
 | `risuko.getVersion` | — | Version object |
@@ -102,6 +107,12 @@ app's Provider Profiles editor instead.
 desktop/Tauri list (`tell_scheduled`), not a JSON-RPC method. `risuko.getGlobalStat`
 does count scheduled tasks in `numWaiting`, matching aria2's broad
 "not active yet" bucket.
+
+`risuko.setBtPeerBlocklist` full-replaces the process-wide BitTorrent IP/CIDR
+blocklist. Each string is a plain IP (`1.2.3.4`, `2001:db8::1`) or CIDR
+(`10.0.0.0/8`, `2001:db8::/32`); invalid entries are ignored. Connected peers
+that match are disconnected and dropped from the swarm. PeerBanHelper drives
+this method through the Aria2Next-compat listener (see below).
 
 ### Options
 
@@ -194,6 +205,21 @@ Protocol errors use the standard JSON-RPC codes: `-32700` (parse error), `-32600
 ## aria2 Compatibility
 
 The RPC server accepts both `risuko.*` and `aria2.*` method prefixes. For example, `aria2.addUri` is treated as `risuko.addUri`. This makes it compatible with existing aria2 RPC clients. `system.listMethods` returns every method under both prefixes.
+
+## PeerBanHelper / Aria2Next listener
+
+When `pbh-enable` is true, the engine starts a **second** JSON-RPC server on
+`pbh-listen-port` (default `16801`), bound to the same `rpc-host` as the
+primary RPC. That listener uses Aria2Next compatibility mode:
+
+- `GET`/`POST` `/` is accepted in addition to `/jsonrpc` (PeerBanHelper posts to the root)
+- `aria2.getVersion` reports `{ version: "1.37.0", product: "aria2-next", rpcVersion: "1", enabledFeatures: [...] }` instead of the Risuko engine version
+- `aria2.getPeers` includes the extra Aria2Next fields listed in [getPeers](/docs/node-api/tasks#getpeers)
+- `aria2.setBtPeerBlocklist` applies the IP/CIDR blocklist described above
+
+In PeerBanHelper, add an **Aria2Next** downloader pointed at
+`http://127.0.0.1:16801/jsonrpc` (or the configured port) and set the RPC token
+to `pbh-rpc-secret`. These keys are startup-only.
 
 ## Authentication
 

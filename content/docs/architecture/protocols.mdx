@@ -21,7 +21,7 @@ The HTTP handler supports multi-threaded range-based downloads:
 - Validates the `Content-Range` header on every 206 response and aborts on mismatch; sends `If-Match` when an `ETag` was recorded for resume
 - Falls back to a single-connection download when the file is below `min-split-size` or the server doesn't support ranges
 - Handles redirects, cookies, and custom headers
-- Supports proxy connections via the `all-proxy` option (`http://`, `socks5://`, `socks5h://`; `https://` proxies are not supported)
+- Supports proxy connections via the `all-proxy` option (`http://`, `socks5://`, `socks5h://`; `https://` proxies are not supported). This is the HTTP profile, distinct from the P2P profile
 - Optional DNS over HTTPS: when `doh-enable` + `doh-url` are set, hostnames resolve via RFC 8484 wire-format queries to the endpoint instead of the system resolver. Applied process-wide to every `risuko-http` client through a pluggable resolver hook, with an in-memory TTL cache and optional fallback to system DNS (`doh-fallback`)
 - Stalled-transfer watchdog: aborts a worker when the EMA stays below `lowest-speed-limit` for `lowest-speed-limit-timeout` (auto-retry restarts it when enabled)
 - Multi-URI tasks pick a mirror via `uri-selector` (`feedback` / `inorder` / `adaptive`)
@@ -68,11 +68,13 @@ Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri
 - BEP-29 µTP (Micro Transport Protocol): outbound dials attempt TCP first and fall back to µTP when TCP is refused; inbound µTP connections are accepted on the same UDP port as the TCP listener
 - BEP-8 Message Stream Encryption (MSE/PE) with selectable `plaintext` / `prefer` / `require` policy
 - BEP-52 BitTorrent v2: SHA-256 Merkle piece-tree verification (16 KiB block leaves), reserved-bit `0x08` in handshake byte 7 advertises v2 capability, and the `HashRequest` / `Hashes` / `HashReject` wire messages exchange Merkle layer slices with sibling proofs
-- UPnP IGD port forwarding for the TCP listener only (the µTP UDP port and IPv6 are not mapped)
+- UPnP IGD port forwarding for the TCP listener and the µTP UDP listener (IPv6 is not mapped)
 - Rarest-first piece selection with endgame mode; SHA-1 (v1) or SHA-256 Merkle root (v2) verification off the async runtime
 - HTTP/HTTPS (BEP-23 compact) and UDP (BEP-15) trackers
 - Configurable seeding (ratio, time, or keep-seeding), upload speed limiting
 - Tunable per-peer request pipeline and per-torrent peer cap
+- Optional P2P proxy (`p2p-proxy` / `p2p-udp-proxy`) for TCP peers, HTTP/UDP tracker announces, DHT, and µTP; SOCKS5/SOCKS5H is required for UDP. LSD and UPnP stay on the local network. See the [Proxy Support guide](/docs/guides/proxy)
+- Process-wide IP/CIDR peer blocklist via `risuko.setBtPeerBlocklist` (used by the PeerBanHelper Aria2Next listener)
 
 <Callout type="info">
 Pure-v2 magnet links resolve by fetching the BEP 52 `piece layers` from peers over `HASH_REQUEST` after the info dict. If no peer serves those layers, resolution fails with `piece layers unavailable`. Hybrid magnets fall back to the v1 info dict when layers are missing but a `btih` hash is present.
@@ -88,12 +90,14 @@ Pure-v2 magnet links resolve by fetching the BEP 52 `piece layers` from peers ov
 | `bt-upload-rate-limit` | Upload speed limit (bytes/s, `0` = unlimited); there is no BT download-rate limit |
 | `bt-tracker` | Additional tracker URLs |
 | `bt-max-peers-per-torrent` | Max concurrent peer connections per torrent (default `100`) |
-| `bt-max-outstanding-per-peer` | Max pipelined chunk requests per peer (default `128`) |
+| `bt-max-outstanding-per-peer` | Per-peer pipelined chunk-request cap; `0` uses adaptive control starting at 6 and growing up to 96, while an explicit value is capped at 256 |
 | `bt-enable-upnp` | UPnP IGD port forwarding (default `true`) |
 | `bt-upnp-lease` | UPnP mapping lease in seconds (default `300`) |
 | `bt-enable-lsd` | BEP-14 Local Service Discovery (default `true`) |
 | `bt-encryption-policy` | MSE/PE policy: `plaintext`, `prefer`, `require` (default `prefer`) |
 | `bt-listen-v6` | Also bind an IPv6 TCP listener (default `false`) |
+| `p2p-proxy` | SOCKS5/HTTP proxy for BitTorrent TCP peers and HTTP tracker announces |
+| `p2p-udp-proxy` | Optional SOCKS5/SOCKS5H proxy for DHT, UDP trackers, and µTP; empty reuses `p2p-proxy` |
 
 ### Seeding Behavior
 
@@ -132,11 +136,17 @@ stage is available.
 See the [Usenet and NZB Downloads guide](/docs/guides/usenet) for provider
 setup, PAR2 recovery, cleanup, and platform limits.
 
+The `nzb-body-timeout` option limits the idle time between chunks when an NZB
+manifest is fetched from an HTTP(S) URL; it defaults to `30` seconds and does
+not affect local `.nzb` files or article downloads from NNTP providers.
+NNTP article fetches follow the HTTP proxy profile (`all-proxy` / `no-proxy`)
+when the Download scope is enabled.
+
 ## ED2K
 
 **Module**: `engine/ed2k/`
 
-Downloads files by known hash using `ed2k://|file|…` links (server links are rejected). Sources come from `OP_GET_SOURCES` on the configured servers plus any `sources,` entries in the link; only high-ID sources are used. Download only — no keyword search, no sharing/upload, no Kad DHT, and no encryption. Files over 4 GiB are rejected (the 64-bit large-file extension is not implemented), and downloaded data is not hash-verified.
+Downloads files by known hash using `ed2k://|file|…` links (server links are rejected). Sources come from `OP_GET_SOURCES` on the configured servers, any `sources,` entries in the link, and the client-only eMule Kad source-discovery service when enabled; only high-ID sources are used. Kad uses UDP for source discovery and does not provide inbound ED2K transfer, keyword search, sharing/upload, or encryption. Server, peer, and Kad sockets follow the P2P proxy profile (`p2p-proxy` / `p2p-udp-proxy`). Files over 4 GiB are rejected (the 64-bit large-file extension is not implemented), and downloaded data is not hash-verified.
 
 ### Key Options
 
@@ -144,6 +154,8 @@ Downloads files by known hash using `ed2k://|file|…` links (server links are r
 |--------|---------|-------------|
 | `ed2k-server` | `176.123.5.89:4725, 45.82.80.155:5687, 85.239.33.123:4232, 91.208.162.87:4232, 145.239.2.134:4661` | Comma-separated `ip:port` server list. Ships seeded with the five servers shown; falls back to a built-in list only if set empty |
 | `ed2k-port` | `4662` | Local client TCP port |
+| `ed2k-enable-kad` | `true` | Enable client-only eMule Kad source discovery over UDP (engine restart) |
+| `ed2k-kad-port` | `4672` | Local Kad UDP port; must be in `1..=65535` (engine restart) |
 
 ## M3U8/HLS
 
@@ -152,7 +164,7 @@ Downloads files by known hash using `ed2k://|file|…` links (server links are r
 Downloads HTTP Live Streaming content:
 
 - Parses master and media M3U8 playlists (highest-bandwidth variant selected from a master playlist)
-- Downloads segments concurrently (bounded by `split`, default 5) with per-segment retry and a resume-progress sidecar
+- Downloads segments concurrently (bounded by `split`, default `16`) with per-segment retry and a resume-progress sidecar
 - Decrypts AES-128-CBC segments (`EXT-X-KEY`); SAMPLE-AES and other methods are written through undecrypted
 - Concatenates segments into a single `.ts`, optionally remuxing to MP4 via `ffmpeg` when `m3u8-output-format` is `mp4`
 - VOD only — live playlists (no `#EXT-X-ENDLIST`) are rejected
@@ -168,6 +180,7 @@ File Transfer Protocol handler:
 - Server host keys pinned on first use (TOFU) via `engine/ssh_known_hosts.rs`; subsequent fingerprint mismatches are refused. The same store is shared with the SFTP upload sink so trust state stays consistent across download and upload paths
 - Resume from an existing `.part` via FTP `REST` or SFTP positional reads; single file per task (no directory listing or multi-file transfer)
 - FTPS certificate verification on by default (`check-certificate`); SFTP auth accepts a password or a PEM private key (`sftp-private-key`)
+- Optional HTTP-profile proxy via `all-proxy` / `no-proxy` (local loopback bridge for the FTP control/data connection)
 
 ## Media (yt-dlp)
 
@@ -179,7 +192,7 @@ Delegates extraction and download to an external `yt-dlp` process resolved from 
 - Spawns `yt-dlp` with `--newline --progress-template` and parses progress lines into the same atomic counters used by HTTP/BT, so the regular speed/progress UI works
 - Picks the format selector from the `media-format` option (falling back to `youtube-format`, then `yt-format`); merges via `ffmpeg` when it is on `PATH`
 - Watches yt-dlp's `before_dl` / `after_move` / `Destination:` lines to learn the resolved output filename
-- Forwards proxy, user-agent, referer, and cookies (`all-proxy`/`proxy`, `user-agent`, `referer`, `cookies` file or `cookie` header)
+- Forwards proxy, user-agent, referer, and cookies (`all-proxy`/`proxy`, `user-agent`, `referer`, `cookies` file or `cookie` header). The forwarded proxy is the HTTP profile, not the P2P profile
 - For YouTube URLs adds `--extractor-args youtube:player_client=web,default`
 
 Routed automatically by `add_uri` whenever `is_media_uri` matches; the dedicated `add_media` Tauri command and `risuko.addMedia` RPC method bypass detection.
@@ -202,7 +215,7 @@ ADC / Direct Connect (both NMDC and ADC dialects) parses URIs but cannot downloa
 
 URI scheme: `gnutella://host[:port]/uri-res/N2R?urn:sha1:<base32>` (also `gnet://`). Default port `6346`. The Gnutella wire protocol itself is not implemented — there is no `GNUTELLA CONNECT/0.6` handshake, no GWebCache discovery, and no `PING`/`QUERY`/`QUERYHIT`. The handler:
 
-- Connects directly to the host in the URI and issues an HTTP/1.1 `GET /uri-res/N2R?<urn>` with an `X-Gnutella-Content-URN` header (`User-Agent: Risuko/0.1`)
+- Connects directly to the host in the URI and issues an HTTP/1.1 `GET /uri-res/N2R?<urn>` with an `X-Gnutella-Content-URN` header (`User-Agent: Risuko/0.1`). The connection uses the P2P proxy profile when configured
 - Accepts only `200` or `206`, requires a `Content-Length` (no chunked encoding), and checks it is within 4 KiB of the `xl=` size hint
 - Streams the single source to disk with no range resume and no SHA-1 verification (the URN is only a request key)
 

@@ -26,41 +26,41 @@ Codes are assigned by pattern-matching the failure message text. Messages that m
 
 | Code | Name | Description |
 |------|------|-------------|
-| 100 | Unknown | An unclassified error occurred. Check the error message for details. |
+| <span id="100" />100 | Unknown | An unclassified error occurred. Check the error message for details. |
 
 ## Network Errors (2xx)
 
 | Code | Name | Description |
 |------|------|-------------|
-| 200 | DNS Resolution Failed | Could not resolve the hostname. Verify the URL and your DNS settings. |
-| 201 | Connection Refused | The remote server refused the connection. The server may be down or the port may be blocked. |
-| 202 | Connection Reset | The connection was reset by the remote host during transfer. |
-| 203 | Connection Timeout | The connection timed out before a response was received. |
-| 204 | Network Unreachable | No network route to the host. Check your internet connection. |
-| 205 | TLS Handshake Failed | SSL/TLS negotiation failed. The server's certificate may be invalid or the TLS version unsupported. |
-| 206 | Proxy Connection Failed | Could not connect through the configured proxy server. |
+| <span id="200" />200 | DNS Resolution Failed | Could not resolve the hostname. Verify the URL and your DNS settings. |
+| <span id="201" />201 | Connection Refused | The remote server refused the connection. The server may be down or the port may be blocked. |
+| <span id="202" />202 | Connection Reset | The connection was reset by the remote host during transfer. |
+| <span id="203" />203 | Connection Timeout | The connection timed out before a response was received. |
+| <span id="204" />204 | Network Unreachable | No network route to the host. Check your internet connection. |
+| <span id="205" />205 | TLS Handshake Failed | SSL/TLS negotiation failed. The server's certificate may be invalid or the TLS version unsupported. |
+| <span id="206" />206 | Proxy Connection Failed | Could not connect through the configured proxy server. |
 
 ## HTTP Errors (3xx)
 
 | Code | Name | Description |
 |------|------|-------------|
-| 300 | Unauthorized | HTTP 401 — The server requires authentication credentials. |
-| 301 | Forbidden | HTTP 403 — Access to the resource is denied. |
-| 302 | Not Found | HTTP 404 — The requested file does not exist on the server. |
-| 303 | Range Not Satisfiable | HTTP 416 — The server cannot fulfill the byte range request. The file may have changed. |
-| 304 | Too Many Requests | HTTP 429 — Rate limited by the server. Try again later. |
-| 305 | Server Error | HTTP 5xx — An error occurred on the server side. |
-| 306 | Service Unavailable | HTTP 503 — The server is temporarily unavailable. |
-| 307 | Redirect Loop | Too many HTTP redirects were followed. |
-| 308 | Response Error | An unspecified HTTP response error. |
-| 315 | Cloudflare Challenge | Cloudflare bot-protection detected on a 403/503/429 response. Import browser cookies to bypass — see the [Browser Cookies guide](/docs/guides/browser-cookies). |
+| <span id="300" />300 | Unauthorized | HTTP 401 — The server requires authentication credentials. |
+| <span id="301" />301 | Forbidden | HTTP 403 — Access to the resource is denied. |
+| <span id="302" />302 | Not Found | HTTP 404 — The requested file does not exist on the server. |
+| <span id="303" />303 | Range Not Satisfiable | HTTP 416 — The server cannot fulfill the byte range request. The file may have changed. |
+| <span id="304" />304 | Too Many Requests | HTTP 429 — Rate limited by the server. Try again later. |
+| <span id="305" />305 | Server Error | HTTP 5xx — An error occurred on the server side. |
+| <span id="306" />306 | Service Unavailable | HTTP 503 — The server is temporarily unavailable. |
+| <span id="307" />307 | Redirect Loop | Too many HTTP redirects were followed. |
+| <span id="308" />308 | Response Error | An unspecified HTTP response error. |
+| <span id="315" />315 | Cloudflare Challenge | Cloudflare bot-protection detected on a 403/503/429 response. Import browser cookies to bypass — see the [Browser Cookies guide](/docs/guides/browser-cookies). |
 
 ## File System Errors (4xx)
 
 | Code | Name | Description |
 |------|------|-------------|
-| 400 | Disk Full | No space left on the target disk or storage quota exceeded. |
-| 401 | Permission Denied | Insufficient permissions to write to the download directory. |
+| <span id="400" />400 | Disk Full | No space left on the target disk or storage quota exceeded. |
+| <span id="401" />401 | Permission Denied | Insufficient permissions to write to the download directory. |
 
 ## Protocol-Specific Errors (5xx)
 
@@ -68,61 +68,59 @@ Codes are assigned by pattern-matching the failure message text. Messages that m
 
 | Code | Name | Description |
 |------|------|-------------|
-| 500 | Metadata Failed | Failed to resolve torrent metadata from peers or trackers. |
-| 501 | No Seeds | No seeders are available for this torrent. |
-| 502 | Invalid Torrent File | The `.torrent` file is corrupt or not a valid BitTorrent metainfo file. |
-| 503 | BitTorrent v2 Piece Layers Unavailable | A pure-v2 magnet resolved its info dict but no peer served the BEP 52 piece-layer hashes. The torrent cannot be verified until the layers are obtained — importing the `.torrent` file directly always works. |
+| <span id="500" />500 | Metadata Failed | Failed to resolve torrent metadata from peers or trackers. |
+| <span id="501" />501 | No Seeds | No seeders are available for this torrent. |
+| <span id="502" />502 | Invalid Torrent File | The `.torrent` file is corrupt or not a valid BitTorrent metainfo file. |
+| <span id="503" />503 | BitTorrent v2 Piece Layers Unavailable | A pure-v2 magnet resolved its info dict but no peer served the BEP 52 piece-layer hashes. The torrent cannot be verified until the layers are obtained — importing the `.torrent` file directly always works. |
 
 ### ED2K
 
 | Code | Name | Description |
 |------|------|-------------|
-| 510 | Server Unreachable | Could not connect to the ED2K server. |
-| 511 | File Not Found | The file was not found on the ED2K network. |
+| <span id="510" />510 | Server Unreachable | Could not connect to the ED2K server. |
+| <span id="511" />511 | File Not Found | The file was not found on the ED2K network. |
 
 ### M3U8 / HLS
 
 | Code | Name | Description |
 |------|------|-------------|
-| 520 | Parse Failed | Failed to parse the M3U8 playlist. The URL may not point to a valid HLS stream. |
-| 521 | Segment Failed | One or more video segments failed to download. |
-| 522 | Decrypt Failed | Failed to decrypt an encrypted HLS segment (AES-128). |
+| <span id="520" />520 | Parse Failed | Failed to parse the M3U8 playlist. The URL may not point to a valid HLS stream. |
+| <span id="521" />521 | Segment Failed | One or more video segments failed to download. |
+| <span id="522" />522 | Decrypt Failed | Failed to decrypt an encrypted HLS segment (AES-128). |
 
 ### FTP / SFTP
 
 | Code | Name | Description |
 |------|------|-------------|
-| 530 | FTP Login Failed | Authentication failed. Check your username and password. |
-| 531 | FTP File Not Found | The file does not exist on the FTP server. |
-| 532 | FTP Transfer Failed | The file transfer was interrupted or failed. |
-| 533 | SFTP Auth Failed | SFTP authentication failed. Check your credentials or private key. |
-| 534 | SFTP Host Key Failed | The SFTP server's host key could not be verified, or the pinned fingerprint changed (TOFU). |
-
-<span id="554" />
+| <span id="530" />530 | FTP Login Failed | Authentication failed. Check your username and password. |
+| <span id="531" />531 | FTP File Not Found | The file does not exist on the FTP server. |
+| <span id="532" />532 | FTP Transfer Failed | The file transfer was interrupted or failed. |
+| <span id="533" />533 | SFTP Auth Failed | SFTP authentication failed. Check your credentials or private key. |
+| <span id="534" />534 | SFTP Host Key Failed | The SFTP server's host key could not be verified, or the pinned fingerprint changed (TOFU). |
 
 ### Usenet / NZB
 
 | Code | Name | Description |
 |------|------|-------------|
-| 550 | Usenet Authentication Failed | The NNTP provider rejected the configured credentials or the profile requires credentials that are not available in the local keychain. |
-| 551 | Usenet Article Unavailable | A required article is missing or unavailable from the provider. Risuko can try another enabled provider, but the task fails when no provider can supply the required article. |
-| 552 | Unsafe Archive Input | Risuko rejected an unsafe archive or PAR2 path, link, special file, or name. The input was kept for inspection. |
-| 553 | Archive Safety Limit Exceeded | Processing exceeded a configured archive or PAR2 safety limit, such as entry count, expanded size, compression ratio, free-space reserve, or active time. |
-| 554 | PAR2 Repair Failed | PAR2 could not reconstruct the missing or damaged files because recovery data was missing, invalid, or insufficient. Partial files are kept. |
+| <span id="550" />550 | Usenet Authentication Failed | The NNTP provider rejected the configured credentials or the profile requires credentials that are not available in the local keychain. |
+| <span id="551" />551 | Usenet Article Unavailable | A required article is missing or unavailable from the provider. Risuko can try another enabled provider, but the task fails when no provider can supply the required article. |
+| <span id="552" />552 | Unsafe Archive Input | Risuko rejected an unsafe archive or PAR2 path, link, special file, or name. The input was kept for inspection. |
+| <span id="553" />553 | Archive Safety Limit Exceeded | Processing exceeded a configured archive or PAR2 safety limit, such as entry count, expanded size, compression ratio, free-space reserve, or active time. |
+| <span id="554" />554 | PAR2 Repair Failed | PAR2 could not reconstruct the missing or damaged files because recovery data was missing, invalid, or insufficient. Partial files are kept. |
 
 ### Media (yt-dlp)
 
 | Code | Name | Description |
 |------|------|-------------|
-| 540 | yt-dlp Not Found | The `yt-dlp` binary could not be located on `PATH`. Install `yt-dlp` to enable media downloads. |
-| 541 | Authentication Required | The video requires login (sign-in, members-only, or age-restricted). Provide cookies via the `cookies` file option or a `cookie` header. |
-| 542 | Format Unavailable | The format selector in `media-format` (aliases `youtube-format`, `yt-format`) did not match any of the formats yt-dlp returned. |
+| <span id="540" />540 | yt-dlp Not Found | The `yt-dlp` binary could not be located on `PATH`. Install `yt-dlp` to enable media downloads. |
+| <span id="541" />541 | Authentication Required | The video requires login (sign-in, members-only, or age-restricted). Provide cookies via the `cookies` file option or a `cookie` header. |
+| <span id="542" />542 | Format Unavailable | The format selector in `media-format` (aliases `youtube-format`, `yt-format`) did not match any of the formats yt-dlp returned. |
 
 ## Internal Errors (9xx)
 
 | Code | Name | Description |
 |------|------|-------------|
-| 900 | Engine Not Running | The download engine is not running. Try restarting the application. |
+| <span id="900" />900 | Engine Not Running | The download engine is not running. Try restarting the application. |
 
 ---
 

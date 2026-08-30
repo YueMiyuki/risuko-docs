@@ -3,7 +3,7 @@ title: Introduction
 description: Risuko is a Rust-powered multi-protocol download engine with a desktop app, CLI, and Node.js API.
 ---
 
-Risuko (Ri-su-ko) is a high-performance download engine written in Rust. It supports HTTP/HTTPS, BitTorrent (v1 + v2), ED2K, M3U8/HLS, FTP/FTPS/SFTP, media sites (via yt-dlp), the legacy P2P networks Gnutella, G2, and giFT, and RSS feeds.
+Risuko (Ri-su-ko) is a high-performance download engine written in Rust. It supports HTTP/HTTPS, BitTorrent (v1 + v2), ED2K (including client-only Kad source discovery), Usenet/NZB, M3U8/HLS, FTP/FTPS/SFTP, media sites (via yt-dlp), the legacy P2P networks Gnutella, G2, and giFT, and RSS feeds.
 
 The name means squirrel in Japanese, an energetic little creature that rapidly gathers and caches away every treasure it finds.
 
@@ -21,7 +21,8 @@ The engine also exposes an aria2-compatible JSON-RPC server (default port 16800)
 |----------|-------------|
 | HTTP/HTTPS | Multi-threaded range-based downloads with mirror failover, resume, and connection pooling |
 | BitTorrent | Magnet links, `.torrent` files, **v1 + v2 (BEP 52) hybrid**, TCP + µTP transports, dual-stack DHT, PEX, LSD, MSE/PE encryption, UPnP port mapping, seeding control |
-| ED2K | eDonkey2000 downloads via `ed2k://\|file\|…` links (files up to 4 GiB) |
+| ED2K | eDonkey2000 downloads via `ed2k://\|file\|…` links (files up to 4 GiB), with optional client-only Kad source discovery |
+| Usenet / NZB | NNTP article download from NZB manifests, with PAR2 repair and archive safety limits |
 | M3U8/HLS | HTTP Live Streaming segment downloads (with AES-128-CBC decrypt) |
 | FTP/FTPS/SFTP | FTP with implicit/explicit TLS; SFTP host keys pinned via TOFU |
 | Media (yt-dlp) | External `yt-dlp` (from `PATH`) for YouTube and other media hosts, with progress integration |

@@ -1,23 +1,36 @@
 ---
 title: Proxy Support
-description: Configure one proxy for downloads, tracker updates, and desktop update checks.
+description: Configure separate HTTP and P2P proxy profiles for downloads, trackers, and peer traffic.
 ---
 
-Risuko has one optional application proxy. Enable it in **Preferences ->
-Advanced -> Proxy**, enter a complete proxy URL, and select the scopes that may
-use it. The proxy is opt-in per scope; it is never a system-wide proxy.
+Risuko has two independent application proxies. Enable them in **Preferences ->
+Advanced -> Proxy**. Neither profile is a system-wide proxy; each is opt-in and
+only covers the traffic listed below.
 
-The nested setting is stored as `proxy`. The engine-compatible `all-proxy` and
-`no-proxy` values are derived from it for download clients. The default scope
-selection is **Download**, **Update Trackers**, and **Update Application**. You
-can clear any scope independently.
+The nested setting is stored as `proxy`. Engine-compatible flattened keys are
+derived from it:
 
-## Supported Traffic
-
-| Scope | Requests routed through the proxy |
+| Profile | Derived keys |
 | --- | --- |
-| **Download** | HTTP/HTTPS downloads, Metalink files, HLS/m3u8 segments, and the initial media URL handed to yt-dlp |
-| **Update Trackers** | Tracker-list source requests; tracker announces and peer traffic remain direct |
+| **HTTP / FTP / Usenet** | `all-proxy`, `no-proxy` |
+| **P2P** | `p2p-proxy`, `p2p-no-proxy`, `p2p-udp-proxy`, `p2p-udp-no-proxy` |
+
+Older synced settings that used a flat `{ enable, server, bypass, scope }`
+object are still accepted and migrated field-by-field into the HTTP profile.
+
+## HTTP / FTP / Usenet proxy
+
+Enable **HTTP / FTP / Usenet proxy**, enter a complete proxy URL, and select
+the scopes that may use it. The default scope selection is **Download**,
+**Update Trackers**, and **Update Application**. You can clear any scope
+independently.
+
+### Supported traffic
+
+| Scope | Requests routed through the HTTP profile |
+| --- | --- |
+| **Download** | HTTP/HTTPS downloads, Metalink files, HLS/m3u8 segments, the initial media URL handed to yt-dlp, FTP/FTPS/SFTP, and Usenet/NNTP |
+| **Update Trackers** | Tracker-list source requests (the lists fetched in Preferences). BitTorrent tracker *announces* use the P2P profile, not this scope |
 | **Update Application** | The signed desktop update manifest and package download |
 
 The native HTTP client evaluates bypass rules for every connection, including
@@ -30,14 +43,30 @@ manifest endpoint before starting the updater check. The Tauri updater then
 keeps that one direct-or-proxied choice for the selected package download and
 its redirects; it does not re-evaluate the bypass list for the package host.
 
-These protocols do not use the application proxy: BitTorrent peers and
-announces, DHT/LSD/uTP/UPnP, Usenet/NNTP, FTP/FTPS/SFTP, ed2k, ADC/DC,
-Gnutella/Gnutella2, RSS feeds, and cloud-upload providers. A VPN or operating
-system proxy is outside Risuko's configuration.
+RSS feeds, cloud-upload providers, and ADC/Direct Connect do not use either
+application proxy. A VPN or operating-system proxy is outside Risuko's
+configuration.
+
+## P2P proxy
+
+Enable **P2P proxy** separately. It covers BitTorrent peers, HTTP and UDP
+tracker announces, DHT, µTP, eD2K server/peer connections and Kad, plus
+the Gnutella, G2, and giFT handlers. LSD multicast and UPnP stay on the
+local network.
+
+| Field | Used for |
+| --- | --- |
+| **TCP proxy server** / **TCP proxy bypass** | TCP peer connections, HTTP tracker announces, eD2K TCP, Gnutella/G2/giFT |
+| **UDP proxy server** / **UDP proxy bypass** | DHT, UDP trackers, µTP, and eMule Kad. Leave blank to reuse the TCP P2P route |
+
+SOCKS5 or SOCKS5H is required for DHT, UDP trackers, µTP, and Kad. An HTTP
+proxy on the P2P profile is used only for TCP P2P connections; it cannot carry
+UDP. Changing the P2P profile at runtime reloads the BitTorrent session and
+restarts affected P2P downloads.
 
 <Callout type="warn">
-Selecting a proxy does not anonymize BitTorrent traffic. Peer connections and
-tracker announces still use their normal direct transports.
+An HTTP-only P2P proxy does not anonymize BitTorrent UDP. DHT, UDP trackers,
+and µTP stay direct unless a SOCKS5/SOCKS5H UDP route is configured.
 </Callout>
 
 ## Proxy URL
@@ -69,7 +98,8 @@ direct download.
 
 Enter comma- or newline-separated entries in **Bypass**. Matching is
 case-insensitive. Risuko trims entries, drops invalid values, and collapses
-duplicates when saving.
+duplicates when saving. Each profile (HTTP, P2P TCP, P2P UDP) has its own
+bypass list.
 
 | Entry | Matches |
 | --- | --- |
@@ -91,16 +121,17 @@ entries, such as `example.com:nope` or an out-of-range CIDR prefix, are
 ignored. CIDR entries match a destination written as an IP literal; Risuko
 does not resolve a hostname before comparing it to a CIDR rule.
 
-The same normalized bypass list is used by every selected scope. Native HTTP
-paths evaluate it for each request; update checks evaluate it when choosing the
-manifest route as described above. Port-specific rules can therefore bypass one
-connection while proxying another connection to the same host.
+The HTTP profile's bypass list is used by every selected HTTP scope. Native
+HTTP paths evaluate it for each request; update checks evaluate it when
+choosing the manifest route as described above. Port-specific rules can
+therefore bypass one connection while proxying another connection to the same
+host.
 
 ## Per-Task Overrides
 
 The **Add Task** dialog has a task-level Proxy field. It overrides the global
-download proxy for that task. The CLI and JSON-RPC clients can set the same
-`all-proxy` option in task options:
+HTTP download proxy (`all-proxy`) for that task. The CLI and JSON-RPC clients
+can set the same option in task options:
 
 ```bash
 risuko download https://example.com/file.zip \
@@ -116,21 +147,28 @@ risuko download https://example.com/file.zip \
 }
 ```
 
-Task-level values are validated by the native HTTP client. The global
-`no-proxy` list is used for global proxy decisions; yt-dlp's own networking
-remains governed by yt-dlp after it starts.
+BitTorrent, eD2K, and other P2P tasks can override the P2P route with
+`p2p-proxy` / `p2p-no-proxy` (and optionally `p2p-udp-proxy` /
+`p2p-udp-no-proxy`). Setting any of those keys on a task treats the P2P route
+as a task override and does not fall back to the global P2P profile.
+
+Task-level HTTP values are validated by the native HTTP client. The global
+`no-proxy` list is used for global HTTP proxy decisions; yt-dlp's own
+networking remains governed by yt-dlp after it starts.
 
 ## Troubleshooting
 
 1. Confirm the proxy URL includes a supported scheme and a reachable port.
-2. Confirm the relevant scope is selected. A configured server with no selected
-   scope is intentionally unused.
-3. Add the destination host or network to **Bypass** when it must connect
-   directly. Check the normalized value after saving.
-4. Run the **Health** network checks to separate a malformed URL from a
+2. Confirm the relevant HTTP scope is selected. A configured HTTP server with
+   no selected scope is intentionally unused.
+3. For BitTorrent UDP, DHT, or Kad, confirm the P2P profile uses SOCKS5 or
+   SOCKS5H rather than an HTTP proxy.
+4. Add the destination host or network to the matching **Bypass** field when
+   it must connect directly. Check the normalized value after saving.
+5. Run the **Health** network checks to separate a malformed URL from a
    connectivity failure.
-5. For a hostname available only inside the proxy network, use `socks5h://` so
+6. For a hostname available only inside the proxy network, use `socks5h://` so
    the proxy performs DNS resolution.
 
-The application proxy does not configure PAC/WPAD, detect OS proxy settings,
-chain multiple proxies, or proxy unsupported protocols listed above.
+The application proxies do not configure PAC/WPAD, detect OS proxy settings,
+or chain multiple proxies.

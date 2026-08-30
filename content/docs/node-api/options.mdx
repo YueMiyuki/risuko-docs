@@ -46,7 +46,7 @@ await changeOption(gid, { "seed-time": "0" });
 | `seed-ratio` | Consulted only as the guard for the `seed-time` stop above; the seeding goals themselves are read from global options each tick |
 | `max-download-limit` | Stored on the task; the per-task speed limiter is built when a worker starts, so the new limit applies the next time the task is restarted (e.g. `pause` then `unpause`) |
 
-Other options are stored on the task and used the next time a relevant action runs (for example, `dir`/`out` when the task is restarted).
+Other options are stored on the task and used the next time a relevant action runs (for example, `dir`/`out` when the task is restarted). To change URIs, the save path, or trackers on an existing task, use [`updateTask`](/docs/node-api/tasks#updatetask) instead.
 
 ## Global Options
 
@@ -91,16 +91,21 @@ Defaults come from `src-tauri/risuko-engine/src/config/defaults.rs` and are stor
 | `dir` | OS Downloads dir | Default download directory |
 | `max-concurrent-downloads` | `5` | Maximum active non-torrent download workers. Queue reconciliation can preempt lower-priority non-torrent workers back to `waiting`; BitTorrent tasks are managed separately |
 | `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, `0` = unlimited; updates the `SpeedLimiter` immediately) |
-| `split` | `16` | Default number of HTTP connections for new downloads |
+| `split` | `16` | Default number of HTTP connections for new downloads and M3U8 segment workers |
 | `seed-ratio` | `0` | Stop seeding once the upload/download ratio reaches this value (`0` = no ratio goal; checked every second) |
 | `seed-time` | `0` | Stop seeding after this many minutes (`0` = no time goal) |
 | `keep-seeding` | `false` | Seed until stopped manually, ignoring `seed-ratio`/`seed-time` |
 | `user-agent` | Chrome UA string | Default user agent string |
-| `all-proxy` | `""` | Default proxy URL |
+| `all-proxy` | `""` | Default HTTP-profile proxy URL |
+| `p2p-proxy` | `""` | Default P2P TCP proxy URL (hot-reloaded; restarts affected P2P downloads) |
+| `p2p-udp-proxy` | `""` | Optional P2P UDP proxy; empty reuses `p2p-proxy` |
+| `pbh-enable` | `false` | Start the PeerBanHelper Aria2Next RPC listener (read at `startEngine` only) |
+| `pbh-listen-port` | `16801` | PeerBanHelper RPC port (read at `startEngine` only) |
 | `doh-enable` | `false` | Resolve DNS over HTTPS (only active when `doh-url` is set). Hot-reloaded when any `doh-*` key changes |
 | `doh-url` | `""` | DoH endpoint URL; must be `https://` |
 | `doh-bootstrap` | `""` | Comma/space/newline-separated IPs for reaching the endpoint host without system DNS |
 | `doh-fallback` | `true` | Fall back to the system resolver when a DoH query fails |
+| `nzb-body-timeout` | `30` | Maximum idle time in seconds between chunks while fetching an NZB URL body |
 | `rpc-listen-port` | `16800` | RPC server port (read at `startEngine` only) |
 
-`rpc-listen-port`, `rpc-secret`, `listen-port`, `dht-listen-port`, `ed2k-port`, and most `bt-*` keys are read once at `startEngine`; changing them with `changeGlobalOption` has no effect until the engine is restarted.
+`rpc-listen-port`, `rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`, `listen-port`, `dht-listen-port`, `ed2k-enable-kad`, `ed2k-kad-port`, `ed2k-port`, and most `bt-*` keys are read once at `startEngine`; changing them with `changeGlobalOption` has no effect until the engine is restarted. `p2p-proxy` / `p2p-udp-proxy` are hot-reloaded.

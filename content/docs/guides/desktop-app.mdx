@@ -106,3 +106,18 @@ fragments.
 `auto-check-update` defaults to `false` on every platform. The first-launch
 legal gate is recorded with `legal-accepted`; this flag is local to the device
 and is excluded from cloud sync.
+
+## Editing a Task
+
+The task action menu includes **Edit…** for active, waiting, paused, scheduled,
+and errored tasks. Finished tasks cannot be edited.
+
+- Non-torrent tasks can change the filename, save directory, connection count,
+  per-task speed limit, URIs/mirrors, and HTTP network fields (proxy, user
+  agent, referer, cookie, authorization). Changing the primary URI, directory,
+  or filename restarts the worker after relocating any `.part` file when
+  possible.
+- Torrent tasks can append trackers and change network options, but not URIs,
+  the save path, or the filename.
+- The dialog calls the engine `updateTask` API. See
+  [updateTask](/docs/node-api/tasks#updatetask).
