@@ -4,7 +4,7 @@ const withMDX = createMDX();
 
 /** @type {import('next').NextConfig} */
 const config = {
-  serverExternalPackages: ["@takumi-rs/image-response"],
+  serverExternalPackages: ["@takumi-rs/core", "@takumi-rs/image-response"],
   reactStrictMode: true,
 };
 
