@@ -6,6 +6,10 @@ const withMDX = createMDX();
 const config = {
   serverExternalPackages: ["@takumi-rs/core", "@takumi-rs/image-response"],
   reactStrictMode: true,
+  images: {
+    formats: ["image/avif", "image/webp"],
+    qualities: [75, 90],
+  },
 };
 
 export default withMDX(config);

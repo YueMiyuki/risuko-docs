@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { Footer } from "@/components/footer";
 
 type ApiStatus = "operational" | "degraded" | "unavailable";
 
@@ -144,102 +145,105 @@ export default async function StatusPage() {
   const checkedAt = formatCheckedAt(endpoint.checkedAt);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <section className="border-b border-border/30 px-4 py-16 sm:py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid gap-8 lg:grid-cols-[1fr_320px] lg:items-end">
-            <div>
-              <h1 className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
-                Risuko API status
-              </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Current availability for the public Risuko API endpoint.
-              </p>
-            </div>
+    <>
+      <main className="min-h-screen bg-background text-foreground">
+        <section className="border-b border-border/30 px-4 py-16 sm:py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="grid gap-8 lg:grid-cols-[1fr_320px] lg:items-end">
+              <div>
+                <h1 className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
+                  Risuko API status
+                </h1>
+                <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                  Current availability for the public Risuko API endpoint.
+                </p>
+              </div>
 
-            <div
-              className={`rounded-lg border p-5 ${statusClassName(endpoint.status)}`}
-            >
-              <div className="flex items-center gap-3">
-                <StatusIcon status={endpoint.status} />
+              <div
+                className={`rounded-lg border p-5 ${statusClassName(endpoint.status)}`}
+              >
+                <div className="flex items-center gap-3">
+                  <StatusIcon status={endpoint.status} />
+                  <div>
+                    <div className="text-sm font-medium">Current status</div>
+                    <div className="text-2xl font-semibold tracking-tight">
+                      {statusLabel(endpoint.status)}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 text-xs opacity-80">
+                  Last checked {checkedAt}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 py-10">
+          <div className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-2">
+            <MetricCard
+              label="HTTP status"
+              value={endpoint.statusCode?.toString() ?? "No response"}
+              icon={<Server className="size-4" aria-hidden="true" />}
+            />
+            <MetricCard
+              label="Response time"
+              value={
+                endpoint.responseMs === null
+                  ? "Unavailable"
+                  : `${endpoint.responseMs} ms`
+              }
+              icon={<Clock3 className="size-4" aria-hidden="true" />}
+            />
+          </div>
+        </section>
+
+        <section className="px-4 pb-16">
+          <div className="mx-auto max-w-5xl">
+            <div className="rounded-lg border border-border/40 bg-card/30">
+              <div className="flex items-center justify-between gap-4 border-b border-border/30 px-5 py-4">
                 <div>
-                  <div className="text-sm font-medium">Current status</div>
-                  <div className="text-2xl font-semibold tracking-tight">
+                  <h2 className="font-semibold tracking-tight">
+                    Endpoint monitor
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Live request against the public API
+                  </p>
+                </div>
+                <Globe2
+                  className="size-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </div>
+
+              <div className="p-5">
+                <div className="grid gap-4 rounded-lg border border-border/30 bg-background/40 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <div>
+                    <div className="font-medium">{endpoint.label}</div>
+                    <a
+                      href={endpoint.url}
+                      className="mt-1 block break-all font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {endpoint.url}
+                    </a>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {endpoint.detail}
+                    </p>
+                  </div>
+
+                  <div
+                    className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${statusClassName(endpoint.status)}`}
+                  >
+                    <StatusIcon status={endpoint.status} />
                     {statusLabel(endpoint.status)}
                   </div>
                 </div>
               </div>
-              <div className="mt-4 text-xs opacity-80">
-                Last checked {checkedAt}
-              </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-10">
-        <div className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-2">
-          <MetricCard
-            label="HTTP status"
-            value={endpoint.statusCode?.toString() ?? "No response"}
-            icon={<Server className="size-4" aria-hidden="true" />}
-          />
-          <MetricCard
-            label="Response time"
-            value={
-              endpoint.responseMs === null
-                ? "Unavailable"
-                : `${endpoint.responseMs} ms`
-            }
-            icon={<Clock3 className="size-4" aria-hidden="true" />}
-          />
-        </div>
-      </section>
-
-      <section className="px-4 pb-16">
-        <div className="mx-auto max-w-5xl">
-          <div className="rounded-lg border border-border/40 bg-card/30">
-            <div className="flex items-center justify-between gap-4 border-b border-border/30 px-5 py-4">
-              <div>
-                <h2 className="font-semibold tracking-tight">
-                  Endpoint monitor
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Live request against the public API
-                </p>
-              </div>
-              <Globe2
-                className="size-5 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </div>
-
-            <div className="p-5">
-              <div className="grid gap-4 rounded-lg border border-border/30 bg-background/40 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-                <div>
-                  <div className="font-medium">{endpoint.label}</div>
-                  <a
-                    href={endpoint.url}
-                    className="mt-1 block break-all font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {endpoint.url}
-                  </a>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {endpoint.detail}
-                  </p>
-                </div>
-
-                <div
-                  className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${statusClassName(endpoint.status)}`}
-                >
-                  <StatusIcon status={endpoint.status} />
-                  {statusLabel(endpoint.status)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
+      <Footer />
+    </>
   );
 }

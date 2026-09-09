@@ -35,10 +35,10 @@ function isNewer(latest: string, current: string): boolean {
 const upToDate = () => new NextResponse(null, { status: 204 });
 
 const manifestUnavailable = () =>
-	NextResponse.json(
-		{ error: "Update manifest temporarily unavailable" },
-		{ status: 502, headers: { "Cache-Control": "no-store" } },
-	);
+  NextResponse.json(
+    { error: "Update manifest temporarily unavailable" },
+    { status: 502, headers: { "Cache-Control": "no-store" } },
+  );
 
 export async function GET(
   _req: Request,

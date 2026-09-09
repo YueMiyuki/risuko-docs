@@ -49,7 +49,7 @@ const iconMap: Record<string, LucideIcon> = {
 
 export type Locale = "en" | "zh-CN" | "zh-TW";
 
-export type LegalSection = {
+type LegalSection = {
   id: string;
   icon: keyof typeof iconMap;
   title: string;
@@ -57,7 +57,7 @@ export type LegalSection = {
   body: React.ReactNode;
 };
 
-export type LocaleDoc = {
+type LocaleDoc = {
   title: string;
   updated: string;
   intro: string;
