@@ -3,7 +3,7 @@ title: BitTorrent Downloads
 description: Guide to downloading torrents with Risuko.
 ---
 
-Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri/risuko-bt), an in-tree BitTorrent engine that supports both BEP-3 (v1) and BEP-52 (v2) torrents, including hybrid torrents that carry both info-hashes. Peer discovery uses dual-stack DHT (BEP-5/32), trackers (HTTP and UDP), LSD (BEP-14), and PEX (BEP-11), with µTP (BEP-29) fallback and BEP-55 hole punching for NATed peers.
+Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri/risuko-bt), an in-tree BitTorrent engine that supports both BEP-3 (v1) and BEP-52 (v2) torrents, including hybrid torrents that carry both info-hashes. Public torrents can also use BEP-19 WebSeed mirrors to fill missing pieces over HTTP(S). Peer discovery uses dual-stack DHT (BEP-5/32), trackers (HTTP and UDP), LSD (BEP-14), and PEX (BEP-11), with µTP (BEP-29) fallback and BEP-55 hole punching for NATed peers.
 
 For v2 and hybrid torrents the task exposes an additional `infoHashV2` (SHA-256) field alongside `infoHash`, plus `metaVersion` (`v1`, `v2`, or `hybrid`).
 
@@ -46,6 +46,41 @@ import { addTorrent } from "@risuko/risuko-js";
 const data = await readFile("./ubuntu-24.04.torrent");
 const gid = await addTorrent(data, { dir: "/downloads" });
 ```
+
+## WebSeeds
+
+Risuko reads BEP-19 `url-list` entries from `.torrent` metadata automatically.
+Each URL is treated as a WebSeed mirror for a public torrent; no extra task
+option is required.
+
+WebSeeds must be HTTP or HTTPS URLs and the server must support byte-range
+requests. Risuko requests missing pieces with `Range`, checks the returned
+`Content-Range`, and verifies every piece against the torrent metadata before
+writing it to disk. WebSeed transfers run alongside peer transfers, and a
+failed mirror is skipped so another mirror or the peer swarm can continue the
+download.
+
+For a multi-file torrent, each WebSeed URL is a base URL and must end with a
+slash. Risuko appends the torrent name and each file's relative path:
+
+```text
+https://cdn.example.com/ubuntu/ -> https://cdn.example.com/ubuntu/ubuntu-24.04/readme.txt
+```
+
+For a single-file torrent, a URL can point directly to the file, or a base URL
+ending in `/` can have the torrent filename appended. URL fragments are
+ignored, and duplicate or unsupported URLs are discarded.
+
+<Callout type="info">
+Private torrents are not allowed to use WebSeeds. Their `private` flag also
+disables DHT, LSD, PEX, and hole punching; peer connections come from the
+torrent's trackers only. Magnet resolution may use discovery to obtain the
+metadata, but once the private flag is known the download follows the private
+torrent rules.
+</Callout>
+
+WebSeed requests use the P2P proxy profile when one is configured. Direct
+connections reject loopback, private, and link-local destinations.
 
 ## On-Disk Layout
 

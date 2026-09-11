@@ -82,7 +82,7 @@ function Bullets({ items }: { items: string[] }) {
 
 const PROTOCOLS = [
   "HTTP / HTTPS",
-  "BitTorrent v1+v2",
+  "BitTorrent v1+v2 + WebSeed",
   "Magnet",
   "FTP / SFTP",
   "M3U8 / HLS",
@@ -103,7 +103,7 @@ function MultiProtocolSection() {
             <SectionHeading
               eyebrow="Multi-protocol"
               title="One engine speaks every protocol"
-              description="From plain HTTPS to BEP 52 hybrid torrents, HLS streams, Usenet, and a giFT IPC bridge. Add a URL or a magnet link and Risuko routes it to the right handler, all within a single unified queue."
+              description="From plain HTTPS to BEP 52 hybrid torrents with WebSeed mirrors, HLS streams, Usenet, and a giFT IPC bridge. Add a URL or a magnet link and Risuko routes it to the right handler, all within a single unified queue."
             />
             <ul className="mt-8 flex flex-wrap gap-2">
               {PROTOCOLS.map((p) => (
@@ -586,7 +586,7 @@ const FEATURES: {
   {
     icon: Magnet,
     title: "BitTorrent",
-    text: "Hybrid v1+v2 torrents, magnets, and seeding controls.",
+    text: "Hybrid v1+v2 torrents, WebSeed mirrors, magnets, and seeding controls.",
     href: "/docs/guides/torrent",
     art: <TorrentArt />,
   },
