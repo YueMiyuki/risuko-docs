@@ -11,6 +11,8 @@ The RPC server listens on `http://127.0.0.1:16800/jsonrpc` by default. Host, por
 
 Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&params=<base64(JSON array)>`. An optional `jsoncallback` query parameter wraps the response in JSONP. A `GET` with an `Upgrade: websocket` header opens a WebSocket instead (see below).
 
+To block DNS rebinding, requests whose `Host` header names a DNS host other than `localhost` or the configured `rpc-host` are rejected with `403 Forbidden`. IP literals are always accepted.
+
 ## Request Format
 
 ```json
@@ -62,12 +64,14 @@ Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&pa
 
 `risuko.addMedia` accepts URLs from supported media sites (downloaded via yt-dlp). Other URLs are rejected with "Not a supported media URL" unless the `force-ytdlp` option is set. Methods that take a `gid` also accept a unique GID prefix of at least 4 characters.
 
-`risuko.addMetalink` accepts a standard-base64 Metalink document (`.meta4` / `.metalink`). `risuko.updateTask` applies a `{ uris, dir, out, trackers, options }` patch; see [updateTask](/docs/node-api/tasks#updatetask).
+`risuko.addTorrent` takes the `uris` argument for aria2 compatibility but ignores it. `risuko.addMetalink` accepts a standard-base64 Metalink document (`.meta4` / `.metalink`). `risuko.updateTask` applies a `{ uris, dir, out, trackers, options }` patch; see [updateTask](/docs/node-api/tasks#updatetask).
 
 `risuko.addNzb` accepts a standard-base64 NZB document, not a URL. It creates
 one Usenet task from the parsed manifest. The options object may select a
-non-secret provider reference or cleanup policy, but it must not contain
-provider credentials or archive passwords. Configure those in the desktop
+non-secret provider reference or cleanup policy. Provider credentials and
+archive passwords (`username`, `password`, `usenet-username`,
+`usenet-password`, `archive-password`, `usenet-archive-password`) are silently
+stripped from the options rather than rejected. Configure those in the desktop
 app's Provider Profiles editor instead.
 
 ```json
@@ -133,7 +137,7 @@ this method through the Aria2Next-compat listener (see below).
 | `risuko.shutdown` | — | `"OK"` |
 | `risuko.forceShutdown` | — | `"OK"` |
 
-`shutdown` saves the session before stopping the engine; `forceShutdown` skips the save.
+Both stop the engine, which saves the session as it shuts down; `shutdown` also saves explicitly before signalling the stop.
 
 ### Task Routing
 
@@ -143,7 +147,7 @@ based on the inferred output filename. See the [Task Routing guide](/docs/guides
 | Method | Parameters | Returns |
 |--------|-----------|---------|
 | `risuko.listRoutingRules` | — | Rule array |
-| `risuko.addRoutingRule` | `[rule]` | The rule, with `id` filled in if omitted |
+| `risuko.addRoutingRule` | `[rule]` | The rule, with a UUID `id` assigned when `id` is sent as `""` |
 | `risuko.updateRoutingRule` | `[rule]` | `"OK"` |
 | `risuko.removeRoutingRule` | `[ruleId]` | `"OK"` |
 | `risuko.resolveRouting` | `[filename]` | `{ tag, dir }` decision preview against the current rules |
@@ -160,8 +164,8 @@ A rule has the shape:
 }
 ```
 
-`pattern` is a case-insensitive glob (`glob` crate syntax) matched against
-the inferred filename only — not the URL or directory.
+`id` is required on every rule. `pattern` is a case-insensitive glob (`glob` crate syntax) matched against
+the inferred filename only — not the URL or directory. A trailing `.part` on the filename is ignored.
 
 ## Example: curl
 
@@ -210,11 +214,13 @@ The RPC server accepts both `risuko.*` and `aria2.*` method prefixes. For exampl
 
 When `pbh-enable` is true, the engine starts a **second** JSON-RPC server on
 `pbh-listen-port` (default `16801`), bound to the same `rpc-host` as the
-primary RPC. That listener uses Aria2Next compatibility mode:
+primary RPC. The engine refuses to start unless `pbh-rpc-secret` is non-empty
+and `pbh-listen-port` differs from `rpc-listen-port`. That listener uses
+Aria2Next compatibility mode:
 
-- `GET`/`POST` `/` is accepted in addition to `/jsonrpc` (PeerBanHelper posts to the root)
+- `POST /` is accepted in addition to `/jsonrpc` (PeerBanHelper posts to the root)
 - `aria2.getVersion` reports `{ version: "1.37.0", product: "aria2-next", rpcVersion: "1", enabledFeatures: [...] }` instead of the Risuko engine version
-- `aria2.getPeers` includes the extra Aria2Next fields listed in [getPeers](/docs/node-api/tasks#getpeers)
+- `aria2.getPeers` returns the same peer fields as the primary listener (see [getPeers](/docs/node-api/tasks#getpeers)), but sends `downloadSpeed` and `uploadSpeed` as decimal strings
 - `aria2.setBtPeerBlocklist` applies the IP/CIDR blocklist described above
 
 In PeerBanHelper, add an **Aria2Next** downloader pointed at

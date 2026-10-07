@@ -118,16 +118,18 @@ VOLUME ["/downloads", "/config"]
 CMD ["risuko", "serve", "--rpc-port", "16800"]
 ```
 
-`XDG_CONFIG_HOME=/config` places the config directory at `/config/dev.risuko.app`. Create `system.json` there before starting the container: `rpc-host` must be `0.0.0.0` (the default `127.0.0.1` binds the container's loopback, so the published port would never reach the server) and `dir` points downloads at the volume. Missing keys are filled from defaults.
+`XDG_CONFIG_HOME=/config` places the config directory at `/config/dev.risuko.app`. Create two files there before starting the container. `system.json` holds `dir`, which points downloads at the volume, and `rpc-secret`. `user.json` holds `rpc-host`, which must be `0.0.0.0`. `rpc-host` is a user key: without `user.json` its default `127.0.0.1` overrides `system.json`, binding the container's loopback so the published port never reaches the server. Missing keys are filled from defaults.
 
 ```bash
 mkdir -p /path/to/config/dev.risuko.app
 cat > /path/to/config/dev.risuko.app/system.json <<'EOF'
 {
   "dir": "/downloads",
-  "rpc-host": "0.0.0.0",
   "rpc-secret": "choose-a-secret"
 }
+EOF
+cat > /path/to/config/dev.risuko.app/user.json <<'EOF'
+{ "rpc-host": "0.0.0.0" }
 EOF
 
 docker run -d \

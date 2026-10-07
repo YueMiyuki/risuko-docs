@@ -21,7 +21,7 @@ async function main() {
   // Track downloads
   const downloads = new Map();
 
-  onEvent((event, gid) => {
+  await onEvent((event, gid) => {
     switch (event) {
       case "risuko.onDownloadStart":
         downloads.set(gid, { status: "active" });
@@ -87,7 +87,7 @@ app.whenReady().then(async () => {
   });
 
   // Forward events to renderer
-  onEvent((event, gid) => {
+  await onEvent((event, gid) => {
     mainWindow.webContents.send("risuko-event", { event, gid });
   });
 });
@@ -187,27 +187,31 @@ async function batchDownload(urls, { concurrency = 3, dir = "/downloads" } = {})
 
   const results = new Map();
   let completed = 0;
+  let finish;
+  const finished = new Promise((resolve) => {
+    finish = resolve;
+  });
 
-  return new Promise((resolve) => {
-    onEvent((event, gid) => {
-      if (event === "risuko.onDownloadComplete") {
-        results.set(gid, "complete");
-        completed++;
-      } else if (event === "risuko.onDownloadError") {
-        results.set(gid, "error");
-        completed++;
-      }
+  await onEvent((event, gid) => {
+    if (event === "risuko.onDownloadComplete") {
+      results.set(gid, "complete");
+      completed++;
+    } else if (event === "risuko.onDownloadError") {
+      results.set(gid, "error");
+      completed++;
+    }
 
-      if (completed === urls.length) {
-        resolve(results);
-      }
-    });
-
-    // Queue all downloads
-    for (const url of urls) {
-      addUri([url], { dir });
+    if (completed === urls.length) {
+      finish(results);
     }
   });
+
+  // Queue all downloads
+  for (const url of urls) {
+    await addUri([url], { dir });
+  }
+
+  return finished;
 }
 
 // Usage

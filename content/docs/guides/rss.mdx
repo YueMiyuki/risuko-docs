@@ -57,7 +57,7 @@ risuko rss remove 4f8a1b2c-9d3e-4f5a-8b6c-7d8e9f0a1b2c
 2. New items are detected by item ID — a SHA-256 hash of the entry's GUID (or its link when the GUID is missing)
 3. New items are matched against your rules; only items matching an active auto-download rule are grabbed (see [Rules](#rules)). Media items (enclosures, magnet links, torrent URLs) are queued as downloads; article items are saved as sanitized, self-contained HTML files with their inline media downloaded alongside
 4. Feed state is persisted via the `StorageBackend` trait
-5. Periodic polling checks each feed on its own interval; after a poll finds new items the engine emits an `rss-new-items` event with the new-item count
+5. Periodic polling checks each feed on its own interval; after a poll finds new items the engine emits an `rss-new-items` event with the new-item count. The desktop app currently builds the RSS manager with a no-op event sink, so this event is discarded and nothing in the UI listens for it
 
 ## Storage
 
@@ -87,6 +87,7 @@ Each rule supports the following knobs (`RssRule` in
 | `quality_preferences`, `required_qualities`, `forbidden_qualities` | Tokens matched (case-insensitively) against the title parser's canonicalized quality tags (e.g. `1080p`, `x265`, `WEB-DL`, `HDR10` — note `HEVC`/`H.265` canonicalize to `x265`, `H.264`/`AVC` to `x264`) |
 | `upgrade_existing` | Re-download a previously-grabbed episode when a higher-ranked quality appears |
 | `download_dir` | Per-rule download directory override |
+| `filename_template` | Stored with the rule but not applied yet; downloads keep their own names |
 | `schedule`, `cooldown_secs` | Time-of-day / weekday window, and minimum time since the same episode was last downloaded before the rule fires again |
 
 Size bounds apply only when the feed reports an enclosure length, and

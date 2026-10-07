@@ -17,7 +17,7 @@ function startEngine(config?: EngineConfig): Promise<void>;
 interface EngineConfig {
   /** Custom config directory. Default: OS config dir / dev.risuko.app */
   configDir?: string;
-  /** RPC listen port. Default: 16800 */
+  /** RPC listen port. Default: `rpc-listen-port` from config (16800) */
   rpcPort?: number;
   /** Whether to start the RPC server. Default: true */
   enableRpc?: boolean;
@@ -27,7 +27,9 @@ interface EngineConfig {
 ### Examples
 
 ```js
-import { startEngine } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine } = risuko;
 
 // Use defaults
 await startEngine();
@@ -47,11 +49,11 @@ Only one engine instance can run per process. Calling `startEngine` when the eng
 ### What Happens on Start
 
 1. The config directory is created (if it doesn't exist)
-2. `system.json` and `user.json` config files are loaded (or defaults created)
+2. `system.json` and `user.json` are loaded from the config directory; missing files or keys fall back to built-in defaults in memory (the files are not created)
 3. The download directory is created
 4. The task manager is initialized
 5. Session is restored (torrents resume automatically; other previously active downloads are restored as paused)
-6. The RPC server is started (if `enableRpc` is true)
+6. The RPC server is started (if `enableRpc` is true). When `pbh-enable` is on, a second PeerBanHelper (Aria2Next) listener starts on `pbh-listen-port`; `startEngine` rejects if `pbh-rpc-secret` is empty or `pbh-listen-port` equals the RPC port. The PeerBanHelper listener is skipped when `enableRpc` is false
 7. Background tasks begin: progress updates every second, session auto-save every 30 seconds
 
 ## stopEngine
@@ -63,7 +65,9 @@ function stopEngine(): Promise<void>;
 ```
 
 ```js
-import { stopEngine } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { stopEngine } = risuko;
 
 await stopEngine();
 ```
@@ -97,7 +101,9 @@ function removeDownloadResult(gid: string): Promise<void>;
 ### Example
 
 ```js
-import { saveSession, purgeDownloadResult } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { saveSession, purgeDownloadResult } = risuko;
 
 // Force save
 await saveSession();

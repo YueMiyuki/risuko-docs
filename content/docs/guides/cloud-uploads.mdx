@@ -19,7 +19,7 @@ The CLI and Node.js API do not yet expose sink management.
 |----------|-------|
 | **WebDAV** | Single `PUT` per file with optional Basic auth. Supports skipping TLS verification for self-signed homelab servers. Issues `MKCOL` for missing parent directories. |
 | **S3 (and compatible)** | SigV4 with `UNSIGNED-PAYLOAD`. Files up to 5 GiB use a single `PUT`; larger files are sent through a 3-step multipart pipeline (Initiate → `UploadPart` × N → Complete) with a 64 MiB default part size and a best-effort `DELETE` to abort orphaned uploads on failure. Tested against AWS S3, MinIO, Backblaze B2 (S3 API), Cloudflare R2, Wasabi, and Garage. Supports both virtual-hosted and path-style addressing. |
-| **SFTP** | SSH File Transfer Protocol via `russh` + `russh-sftp`. Authenticates with a password or a PEM-encoded private key (OpenSSH or PKCS#1). Server host keys are pinned on first use (TOFU) and stored in `sftp_known_hosts.json` under the per-user config directory; subsequent mismatches are refused. |
+| **SFTP** | SSH File Transfer Protocol via `russh` + `russh-sftp`. Authenticates with a password or a PEM-encoded private key (OpenSSH or PKCS#1). Server host keys are pinned on first use (TOFU) and stored in `<OS config dir>/risuko/sftp_known_hosts.json`; subsequent mismatches are refused. |
 | **FTP / FTPS** | Plain FTP or implicit-TLS FTPS via `suppaftp`. Anonymous mode is automatic when no username is supplied. Optional `insecure` flag skips TLS certificate verification. |
 
 ## Sink Configuration
@@ -111,8 +111,9 @@ A rule with no fields matches everything. Disabled rules are skipped.
 ## Concurrency
 
 The upload manager runs a bounded job queue with a default concurrency of
-**2**. You can change the limit (clamped to `1..=16`) in Preferences. The new
-value is persisted and applied live: the manager swaps in a fresh
+**2**. You can change the limit (clamped to `1..=16`) with the
+`set_upload_max_concurrency` Tauri command; Preferences has no control for it
+yet. The new value is persisted and applied live: the manager swaps in a fresh
 `tokio::Semaphore` and closes the previous one, so queued workers wake on
 the old semaphore and re-acquire on the new one. In-flight jobs keep their
 existing permit and finish under the previous limit.
@@ -146,7 +147,8 @@ Every sink implements a quick `test()` round-trip:
   only logged as a warning)
 - **S3** — signed `HEAD` against the bucket root; both `200` and `403` pass
   (`403` means the endpoint and credentials work but `ListBucket` is denied)
-- **SFTP** — connect, authenticate, and probe the base path for existence
+- **SFTP** — connect, authenticate, and stat the base path (or `/` when
+  blank); a missing directory still passes
 - **FTP** — connect + login + `PWD`
 
 Use the **Test** button in the sink form to verify credentials before saving.

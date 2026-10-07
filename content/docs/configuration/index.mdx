@@ -5,10 +5,22 @@ description: Risuko configuration reference — all available options.
 
 Risuko stores configuration in two JSON files in the config directory:
 
-- **`system.json`** — System-level defaults (created on first run)
-- **`user.json`** — User overrides
+- **`system.json`** — Engine options such as `dir`, `split`, `doh-*`, and `rpc-secret`
+- **`user.json`** — App preferences plus a fixed set of user-scope engine keys
 
-User settings take precedence over system defaults.
+The desktop app creates both files on first run. The CLI and Node.js API never create them; missing files or keys fall back to built-in defaults in memory.
+
+The engine does **not** merge the two files wholesale. It starts from `system.json`, copies only the [user-scope keys](#user-config) from `user.json`, then applies `engine-overrides`. Any other key in `user.json` is ignored by the engine, even if it has the same name as an engine option.
+
+## User Config
+
+These `user.json` keys override `system.json` when the engine starts:
+
+`rpc-host`, `m3u8-output-format`, `keep-seeding`, `bt-create-subfolder`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-encryption-policy`, `bt-listen-v6`, `bt-enable-lsd`, `purge-record-on-start`, `task-routing-rules`, `file-category-dirs`, `max-worker-retries`, `usenet-profiles`, `usenet-archive-limits`, `usenet-cleanup-mode`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`, and `proxy` (flattened into `all-proxy` / `p2p-*`).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `engine-overrides` | — | Object of arbitrary engine keys applied on top of the global options at startup, so backend options work without a dedicated form field. Keys starting with `rpc-` or ending in `-port` or `-secret` are skipped; a non-object value is ignored with a warning |
 
 ## Config Directory Locations
 
@@ -17,8 +29,10 @@ User settings take precedence over system defaults.
 | macOS | `~/Library/Application Support/dev.risuko.app` |
 | Linux | `~/.config/dev.risuko.app` |
 | Windows | `%APPDATA%\dev.risuko.app` |
-| Desktop App | Managed by Tauri (platform-specific app data) |
-| Node.js API | Configurable via `EngineConfig.configDir` |
+| Desktop App | Tauri app config directory for identifier `app.risuko.Risuko` (for example `~/Library/Application Support/app.risuko.Risuko` on macOS) |
+| Node.js API | Same as the CLI, or `EngineConfig.configDir` |
+
+The macOS, Linux, and Windows rows apply to the CLI and Node.js API. The desktop app keeps its own config and session and does not share them with the CLI or Node.js API.
 
 ## Reading Configuration
 
@@ -38,9 +52,9 @@ risuko config list --json
 ### Node.js
 
 ```js
-import { getGlobalOption } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
 
-const options = await getGlobalOption();
+const options = await risuko.getGlobalOption();
 console.log(options.dir);
 console.log(options["max-concurrent-downloads"]);
 ```
@@ -50,24 +64,32 @@ console.log(options["max-concurrent-downloads"]);
 ### CLI
 
 ```bash
-risuko config set dir '"/home/user/downloads"'
-risuko config set max-concurrent-downloads '"5"'
+# User-scope keys can be set directly
+risuko config set rpc-host 0.0.0.0
+risuko config set keep-seeding true
+
+# Engine keys go through engine-overrides (replaces the whole object)
+risuko config set engine-overrides '{"dir":"/home/user/downloads","max-concurrent-downloads":5}'
 ```
 
+Values are parsed as JSON; anything that isn't valid JSON is stored as a plain string.
+
 <Callout type="warn">
-Values must be valid JSON. Strings need double quotes inside quotes: `'"value"'`
+`risuko config set` always writes `user.json`. Setting an engine key such as `dir` or `max-concurrent-downloads` directly has no effect on the engine, although `config get` and `config list` (which layer `user.json` over `system.json`) will show the new value. Use `engine-overrides`, or edit `system.json` for the keys it skips (such as `rpc-secret` and `rpc-listen-port`).
 </Callout>
 
 ### Node.js
 
 ```js
-import { changeGlobalOption } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
 
-await changeGlobalOption({
+await risuko.changeGlobalOption({
   dir: "/home/user/downloads",
   "max-concurrent-downloads": "5",
 });
 ```
+
+`changeGlobalOption` changes the running engine only; nothing is written to the config files, so the values are lost at `stopEngine`.
 
 ## Option Reference
 
@@ -77,7 +99,8 @@ await changeGlobalOption({
 |-----|---------|-------------|
 | `dir` | OS default | Default download directory |
 | `max-concurrent-downloads` | `5` | Maximum active non-torrent download workers. The desktop app can raise this up to 10; the engine uses the value directly and preempts lower-priority non-torrent tasks back to `waiting` when the queue order requires it |
-| `continue` | `true` | Resume interrupted downloads |
+| `continue` | `true` | Legacy aria2 key. Accepted but has no effect; interrupted downloads always resume |
+| `pause` | `false` | Per-task: add a non-torrent task in the paused state |
 | `purge-record-on-start` | `false` | When the engine starts, drop completed/stopped task records from the session and clear desktop download-history stats. On-disk files for stopped torrent tasks are preserved (the orphan-purge step is told to keep files for those info-hashes); HTTP/FTP/etc. payloads on disk are never touched |
 
 ### Desktop App
@@ -99,6 +122,8 @@ and are not part of the engine's JSON-RPC surface.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `split` | `16` | Connections per download (HTTP/HTTPS); ignored when the file is smaller than `min-split-size` or the server doesn't support `Range` |
+| `max-connection-per-server` | `split` | Cap on connections to one server per download (aria2-compatible) |
+| `max-worker-retries` | `5` | Retries per HTTP segment worker before the task fails (`user.json`) |
 | `min-split-size` | `1M` | Minimum segment size before the file is split (bytes; accepts `K`/`M`/`G` suffixes) |
 
 ### Speed Limiting
@@ -117,6 +142,8 @@ and are not part of the engine's JSON-RPC surface.
 | `referer` | — | Default HTTP referer |
 | `header` | — | Default HTTP headers (array) |
 | `load-cookies` | — | Path to a Netscape/Mozilla format `cookies.txt` (also accepts curl/wget output) loaded into the per-task cookie jar |
+| `cookie` | — | Per-task cookie string sent as a `Cookie` header |
+| `checksum` | — | Per-task whole-file checksum `<algo>:<hex>` (`sha-256`, `sha-1`, or `md5`; aria2's `checksum=` prefix is accepted), verified on completion |
 | `netrc-path` | `~/.netrc` (`%USERPROFILE%\_netrc` on Windows) | Override the `.netrc` file used to inject HTTP Basic auth when a URL has no embedded credentials |
 | `no-netrc` | `false` | Skip `.netrc` lookup entirely |
 
@@ -163,10 +190,13 @@ next connection without an engine restart.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `connect-timeout` | `60` | Connect timeout in seconds for HTTP/HTTPS/FTP |
+| `connect-timeout` | `60` | Connect timeout in seconds for HTTP/HTTPS downloads and NZB URL fetches. FTP/SFTP do not read it |
 | `nzb-body-timeout` | `30` | Maximum idle time in seconds between chunks while fetching an NZB URL body; applies only to URL-based NZB ingestion |
 | `lowest-speed-limit` | `0` | Stalled-transfer threshold in bytes/s. If the EMA stays below this for `lowest-speed-limit-timeout`, the worker is aborted (and restarted when auto-retry is enabled). `0` disables the watchdog |
 | `lowest-speed-limit-timeout` | `30` | How many seconds the transfer must stay below `lowest-speed-limit` before it is considered stalled |
+| `auto-retry` | `false` | Desktop app (`user.json`): automatically retry errored tasks |
+| `auto-retry-interval` | `5` | Desktop app: base retry delay in seconds (1–300) |
+| `auto-retry-strategy` | `static` | Desktop app: `static` (fixed delay) or `exponential` |
 | `uri-selector` | `feedback` | Mirror selection strategy when a task has multiple URIs: `feedback` (drop slow/failing mirrors), `inorder` (try left-to-right), or `adaptive` (prefer fastest) |
 
 ### Low-Speed Auto-Recovery
@@ -197,7 +227,7 @@ the swarm spends minutes warming up again. Tasks whose `kind` is not in
 | Key | Default | Description |
 |-----|---------|-------------|
 | `file-allocation` | `falloc` (`none` on Android) | Disk reservation strategy. `falloc` reserves real blocks via `fallocate(2)` (Linux) or `fcntl(F_PREALLOCATE)` (macOS), falling back to `set_len`. `trunc` only sets the file length. `none` lets writes grow the file as needed. The aria2 alias `prealloc` is accepted as a synonym for `falloc` |
-| `auto-file-renaming` | `true` | When the target output file already exists, append `.1`, `.2`, … instead of overwriting |
+| `auto-file-renaming` | `true` | When the target output file already exists, rename to `name.1.ext`, `name.2.ext`, … instead of overwriting |
 | `remote-time` | `false` | Stamp the local file mtime from the server's `Last-Modified` header on completion (per-task) |
 | `use-remote-file-time` | — | UI/global preference mirrored into per-task `remote-time` when set |
 | `m3u8-output-format` | `ts` | Container produced after concatenating HLS segments (`ts` keeps the original transport stream; other values trigger a remux) |
@@ -208,9 +238,10 @@ the swarm spends minutes warming up again. Tasks whose `kind` is not in
 | Key | Default | Description |
 |-----|---------|-------------|
 | `keep-seeding` | `false` | Seed until manually stopped (overrides `seed-time` / `seed-ratio`) |
-| `seed-ratio` | `0` | Stop seeding at this ratio (0 = no ratio limit) |
-| `seed-time` | `0` | Seed for this many minutes after completing (0 = no time limit) |
-| `bt-tracker` | — | Additional tracker URLs (comma-separated) |
+| `seed-ratio` | `0` | Stop seeding at this ratio. `0` disables this goal; if both goals are `0` and `keep-seeding` is off, torrents stop at completion |
+| `seed-time` | `0` | Seed for this many minutes after completing. `0` disables this goal |
+| `bt-tracker` | — | Additional tracker URLs (comma- or newline-separated) |
+| `select-file` | — | Per-task: 1-based indices of the files to download, with aria2-style ranges such as `1-3,7`. Padding files are not counted. Applied live via `changeOption`. See [file selection](/docs/guides/torrent#file-selection) |
 | `bt-max-peers-per-torrent` | `100` | Max concurrent peer connections per torrent (engine restart) |
 | `bt-max-outstanding-per-peer` | `0` | Per-peer pipelined chunk-request cap (engine restart); `0` uses adaptive control starting at 6 and growing up to 96, while an explicit value is capped at 256 |
 | `bt-upload-rate-limit` | `0` | Seeding upload rate cap in bytes/s (0 = unlimited) (engine restart) |
@@ -219,6 +250,8 @@ the swarm spends minutes warming up again. Tasks whose `kind` is not in
 | `bt-enable-lsd` | `true` | BEP-14 Local Service Discovery via multicast (engine restart) |
 | `bt-encryption-policy` | `prefer` | MSE/PE policy: `plaintext`, `prefer`, or `require` (engine restart) |
 | `bt-listen-v6` | `false` | Also bind an IPv6 TCP listener on the same port (engine restart) |
+| `ed2k-port` | `4662` | eD2K TCP listen port (engine restart) |
+| `ed2k-server` | built-in list | Comma-separated eD2K servers (`host:port`) |
 | `ed2k-enable-kad` | `true` | Enable client-only eMule Kad source discovery over UDP (engine restart) |
 | `ed2k-kad-port` | `4672` | Local Kad UDP port; must be in `1..=65535` (engine restart) |
 | `bt-create-subfolder` | `true` | When `true`, multi-file torrents and magnets are placed under `<dir>/<name>/`. When `false`, files are written directly into `dir`. Single-file torrents are unaffected. Read on each task add (no restart needed); accepted as a per-task option override |
@@ -228,33 +261,33 @@ The DHT (BEP-5) is always enabled and runs as a dual-stack client when an
 IPv6 socket can be bound. The BitTorrent listener uses an ephemeral port; the
 legacy aria2 keys `listen-port`, `dht-listen-port`, `enable-dht`,
 `enable-dht6`, `enable-peer-exchange`, and `bt-enable-lpd` are accepted for
-backwards compatibility but currently have no effect.
+backwards compatibility but currently have no effect. The same applies to
+`bt-force-encryption`, `bt-exclude-tracker`, `bt-load-saved-metadata`,
+`follow-torrent`, and `allow-overwrite`.
 
 ### RPC
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `rpc-listen-port` | `16800` | RPC server port |
-| `rpc-host` | `127.0.0.1` | RPC bind address (set to `0.0.0.0` for LAN access). Also used by the PeerBanHelper listener when that API is enabled |
+| `rpc-host` | `127.0.0.1` | RPC bind address (set to `0.0.0.0` for LAN access); a `user.json` key. Also used by the PeerBanHelper listener when that API is enabled |
 | `rpc-secret` | — | RPC authentication token |
 | `pbh-enable` | `false` | Start a second JSON-RPC listener in Aria2Next compatibility mode so [PeerBanHelper](https://github.com/PBH-BTN/PeerBanHelper) can monitor and ban BitTorrent peers (engine restart) |
 | `pbh-listen-port` | `16801` | PeerBanHelper RPC port (engine restart). In PeerBanHelper, add an Aria2Next downloader pointed at `http://127.0.0.1:<port>/jsonrpc` |
 | `pbh-rpc-secret` | — | Token required as `token:<secret>` on the PeerBanHelper listener (engine restart) |
 
-### YouTube (yt-dlp)
+### Media (yt-dlp)
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `youtube-format` | yt-dlp default | yt-dlp `-f` format selector (e.g. `bestvideo+bestaudio/best`, `mp4`) |
+| `media-format` | yt-dlp default | yt-dlp `--format` selector (e.g. `bestvideo+bestaudio/best`, `mp4`). Aliases: `youtube-format`, `yt-format` |
+| `media-merge-format` | `mp4` | Container passed to `--merge-output-format` when ffmpeg is available. Alias: `youtube-merge-format` |
 
 ### RSS
 
-See the [RSS Feeds guide](/docs/guides/rss) for the full workflow. RSS subscriptions, items, and rules are persisted via the desktop app's storage; the keys below are user-level UI preferences.
+See the [RSS Feeds guide](/docs/guides/rss) for the full workflow. RSS subscriptions, items, and rules are persisted via the desktop app's storage. Each feed is polled on its own interval (default 1800 s, minimum 60 s).
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `rss-auto-update` | — | Enable periodic feed polling (boolean; controlled from the RSS panel) |
-| `rss-update-interval` | — | Polling interval in minutes between automatic refreshes |
+The `rss-auto-update` and `rss-update-interval` keys are accepted but not read by anything.
 
 ### Task Routing
 
@@ -337,10 +370,10 @@ the task or returns it through RPC.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `adc-hub` | — | Default ADC / DC hub URI (`adc(s)://`, `dchub://`, `nmdc://`) used as a hint when a file URI doesn't include one |
-| `adc-nick` | — | Nickname presented to the ADC / DC hub |
-| `gnutella-cache` | — | GWebCache URLs (comma-separated) used to bootstrap Gnutella ultrapeers |
-| `g2-cache` | — | Bootstrap caches for the Gnutella2 (G2) network |
+| `adc-hub` | — | Accepted but has no effect; ADC / DC transfers are not implemented |
+| `adc-nick` | — | Accepted but has no effect |
+| `gnutella-cache` | — | Accepted but has no effect; Gnutella downloads connect directly to the peer in the URI |
+| `g2-cache` | — | Accepted but has no effect; G2 downloads connect directly to the peer in the URI |
 | `gift-enabled` | `false` | Allow `gift://` URIs to be forwarded to a local `giftd` daemon |
 | `gift-host` | `127.0.0.1` | giFT IPC bind address |
 | `gift-port` | `1213` | giFT IPC port |
@@ -374,7 +407,7 @@ runtime is accepted (the value is persisted) but does **not** take effect
 until the engine is restarted (Quit & relaunch the desktop app, or restart
 `risuko serve`):
 
-`dht-listen-port`, `ed2k-enable-kad`, `ed2k-kad-port`, `ed2k-port`, `listen-port`, `rpc-listen-port`,
+`dht-listen-port`, `ed2k-enable-kad`, `ed2k-kad-port`, `ed2k-port`, `listen-port`, `rpc-host`, `rpc-listen-port`,
 `rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`,
 `bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
 `bt-upload-rate-limit`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,

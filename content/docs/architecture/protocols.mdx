@@ -59,19 +59,22 @@ The HTTP handler supports multi-threaded range-based downloads:
 
 Built on [`risuko-bt`](https://github.com/YueMiyuki/Risuko/tree/master/src-tauri/risuko-bt):
 
-- Magnet link resolution (session fast-path for already-managed torrents, then tracker + DHT). Accepts both `xt=urn:btih:` (v1) and `xt=urn:btmh:` (v2 multihash) URNs; hybrid magnets carry both
+- Magnet link resolution (session fast-path for already-managed torrents, then tracker + DHT). Accepts both `xt=urn:btih:` (v1) and `xt=urn:btmh:` (v2 multihash) URNs; hybrid magnets carry both. `x.pe` peers are dialled directly and BEP-53 `so=` seeds the file selection
+- File selection via aria2-style `select-file` (1-based, padding files not counted), changeable on a running torrent; bytes of deselected files that share a piece with selected ones go to part files under `.risuko-parts/<info-hash>/`
 - `.torrent` file parsing via the bundled bencode decoder; supports v1, pure-v2, and hybrid metainfo (BEP 52 `meta version=2` with `file tree` and `piece layers`)
 - BEP-19 WebSeeds from top-level `url-list` metadata: HTTP(S) mirrors are used to fetch missing pieces with validated byte ranges and piece hashes, alongside peer transfers. Multi-file torrents require a base URL ending in `/`; private torrents do not use WebSeeds
 - BEP-5 DHT for peer discovery, dual-stack (IPv4 + IPv6 via BEP-32) when an IPv6 socket can be bound; per-torrent continuous `get_peers` polling and `announce_peer` keep the peer supply live throughout the download session. Pure-v2 swarms announce the leading 20 bytes of the SHA-256 info-hash on the v1 DHT/trackers per BEP 52
 - BEP-14 Local Service Discovery (LSD) for peers on the same LAN
 - BEP-10 extension protocol with `ut_metadata` (BEP-9) and full BEP-11 PEX (`ut_pex`): received peer-exchange messages are parsed and gossiped peers are fed into the dial channel
 - BEP-55 `ut_holepunch` NAT traversal: advertised in the extended handshake. When a direct dial to a PEX-gossiped peer fails, Risuko asks the relay that gossiped it to perform a rendezvous; as a relay it forwards `connect` messages so two NATed peers can simultaneously open a connection
-- BEP-29 µTP (Micro Transport Protocol): outbound dials attempt TCP first and fall back to µTP when TCP is refused; inbound µTP connections are accepted on the same UDP port as the TCP listener
-- BEP-8 Message Stream Encryption (MSE/PE) with selectable `plaintext` / `prefer` / `require` policy
-- BEP-52 BitTorrent v2: SHA-256 Merkle piece-tree verification (16 KiB block leaves), reserved-bit `0x08` in handshake byte 7 advertises v2 capability, and the `HashRequest` / `Hashes` / `HashReject` wire messages exchange Merkle layer slices with sibling proofs
+- BEP-29 µTP (Micro Transport Protocol) with LEDBAT congestion control, selective ACKs, Nagle-style write coalescing, and path-MTU discovery via don't-fragment probes: outbound dials attempt TCP first and fall back to µTP when the TCP dial or handshake fails (peers reached by hole punching are dialled over µTP first); inbound µTP connections are accepted on the same UDP port as the TCP listener
+- Message Stream Encryption (MSE/PE) over both TCP and µTP with selectable `plaintext` / `prefer` / `require` policy
+- BEP-8 tracker peer obfuscation: HTTP(S) trackers from `obfuscate-announce-list` are announced with `sha_ih` and an obscured port, their RC4-encrypted peer lists are decrypted, and those peers are dialled with MSE first
+- BEP-52 BitTorrent v2: SHA-256 Merkle piece-tree verification (16 KiB block leaves, BEP 52 pad hashes), reserved-bit `0x10` in handshake byte 7 advertises v2 capability, and the `HashRequest` / `Hashes` / `HashReject` wire messages exchange Merkle layer slices with sibling proofs, both requested and served (piece layers and, for verified pieces, block-level layers)
+- BEP-47 padding files are hidden from file lists and never written to disk
 - UPnP IGD port forwarding for the TCP listener and the µTP UDP listener (IPv6 is not mapped)
 - Rarest-first piece selection with endgame mode; SHA-1 (v1) or SHA-256 Merkle root (v2) verification off the async runtime
-- HTTP/HTTPS (BEP-23 compact) and UDP (BEP-15) trackers
+- HTTP/HTTPS (BEP-23 compact) and UDP (BEP-15) trackers, with BEP-12 tiers, BEP-7 per-family IPv4/IPv6 announces merged into one peer list, and BEP-41 URL data (path and query, e.g. passkeys) on UDP announces
 - Configurable seeding (ratio, time, or keep-seeding), upload speed limiting
 - Tunable per-peer request pipeline and per-torrent peer cap
 - Optional P2P proxy (`p2p-proxy` / `p2p-udp-proxy`) for TCP peers, HTTP/UDP tracker announces, DHT, and µTP; SOCKS5/SOCKS5H is required for UDP. LSD and UPnP stay on the local network. See the [Proxy Support guide](/docs/guides/proxy)
@@ -94,6 +97,7 @@ Pure-v2 magnet links resolve by fetching the BEP 52 `piece layers` from peers ov
 | `keep-seeding` | Seed until manually stopped (overrides `seed-time` / `seed-ratio`) |
 | `bt-upload-rate-limit` | Upload speed limit (bytes/s, `0` = unlimited); there is no BT download-rate limit |
 | `bt-tracker` | Additional tracker URLs |
+| `select-file` | Files to download, aria2 syntax such as `1-3,7` (per task; see [File Selection](/docs/guides/torrent#file-selection)) |
 | `bt-max-peers-per-torrent` | Max concurrent peer connections per torrent (default `100`) |
 | `bt-max-outstanding-per-peer` | Per-peer pipelined chunk-request cap; `0` uses adaptive control starting at 6 and growing up to 96, while an explicit value is capped at 256 |
 | `bt-enable-upnp` | UPnP IGD port forwarding (default `true`) |

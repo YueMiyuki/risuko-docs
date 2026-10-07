@@ -19,7 +19,7 @@ Tauri command — see [Programmatic Access](#programmatic-access) below.
 | Category | What it checks |
 |----------|----------------|
 | `general` | Engine running state, uptime, app version, RPC endpoint, empty-secret warning when the RPC host is not loopback |
-| `network` | BT and DHT listen-port configuration, ED2K Kad UDP binding and bootstrap state, IPv6 listener flag, proxy URL validity and reachability (slow probe) |
+| `network` | BT and DHT listen-port configuration, ED2K Kad UDP binding and bootstrap state, IPv6 listener flag, HTTP, P2P, and P2P UDP proxy profiles (URL validity, reachability as a slow probe) |
 | `bittorrent` | Encryption policy, UPnP mappings, LSD listener, BT session port and torrent count, DHT routing-table size, peer tuning limits, tracker reachability (slow probe) |
 | `disk` | Download directory writability, free space, file allocation strategy, recent save paths (failures demoted to warnings) |
 | `system` | Auto-launch state, "prevent sleep while downloading" toggle, OS-level sleep inhibitor activity |
@@ -33,8 +33,8 @@ Each individual check returns one of:
 - `warn` — Working but suboptimal (e.g. UPnP enabled but no router responded)
 - `fail` — Broken (e.g. download dir not writable)
 - `skipped` — Not run (slow probe disabled, or feature inactive). The DHT
-  check also reports `skipped` during the first 60 s after engine start
-  while the routing table bootstraps
+  check also reports `skipped` while its routing table is still empty
+  during the first 60 s after engine start
 
 The category status is the worst of its checks; the overall status is the
 worst across categories. Severity order is `fail` > `warn` > `skipped` >
@@ -100,10 +100,13 @@ interface HealthReport {
 Slow probes are skipped by default so the panel stays snappy. There are
 currently two:
 
-- Proxy reachability: a `HEAD` request through the configured proxy to
-  `https://www.cloudflare.com/cdn-cgi/trace`, capped at 4 s.
+- Proxy reachability: one `HEAD` request to
+  `https://www.cloudflare.com/cdn-cgi/trace` through each configured proxy
+  profile (HTTP, P2P, and P2P UDP when it differs from P2P), capped at 4 s
+  each.
 - Tracker reachability: a `HEAD` request per unique HTTP(S) tracker URL
-  across active torrents, 3 s timeout each, 8 in flight at a time. UDP
+  across active, waiting, and paused torrents, 3 s timeout each, 8 in
+  flight at a time. UDP
   and WebSocket trackers are skipped; an HTTP 400 response counts as
   reachable (announce endpoints reject `HEAD` without a query).
 

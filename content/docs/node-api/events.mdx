@@ -31,11 +31,11 @@ Call `onEvent` after `startEngine` but before adding downloads to avoid missing 
 
 ### risuko.onDownloadStart
 
-Fired when a download is added or resumed (unpaused).
+Fired when a download's worker starts. Torrents and magnets fire it when added and when unpaused. Other tasks fire it when the queue actually starts them, so a task that is queued, added with `pause`, or scheduled does not fire on add; it fires once it starts, including after `unpause` and after being preempted and restarted.
 
 ### risuko.onDownloadPause
 
-Fired when a download is paused.
+Fired when a download is paused. It also fires when the queue preempts an active task back to `waiting` to free a slot, and when [`updateTask`](/docs/node-api/tasks#updatetask) stops an active worker to restart it with new settings.
 
 ### risuko.onDownloadStop
 
@@ -58,7 +58,9 @@ Fired when a BitTorrent download finishes downloading (but may still be seeding)
 ### Basic event logging
 
 ```js
-import { startEngine, addUri, onEvent } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, addUri, onEvent } = risuko;
 
 await startEngine();
 
@@ -73,7 +75,9 @@ await addUri(["https://example.com/file.zip"]);
 ### Waiting for completion
 
 ```js
-import { startEngine, addUri, onEvent, stopEngine } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, addUri, onEvent, stopEngine } = risuko;
 
 await startEngine();
 
@@ -111,7 +115,9 @@ await stopEngine();
 ### Error handling
 
 ```js
-import { startEngine, addUri, onEvent, tellStatus } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, onEvent, tellStatus } = risuko;
 
 await startEngine();
 

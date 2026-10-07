@@ -7,7 +7,7 @@ Risuko uses numeric error codes to identify download failures. Each error code b
 
 When a download fails, the error code and a human-readable message are stored on the task and displayed in the UI. In the task's JSON representation they appear as `errorCode` (the code as a string, e.g. `"315"`) and `errorMessage`; both are omitted when the task has no error and cleared when it restarts.
 
-Codes are assigned by pattern-matching the failure message text. Messages that match no pattern fall back to code 100.
+Codes are assigned by pattern-matching the failure message text; network patterns are checked before HTTP ones, so a message such as "504 Gateway Timeout" is classified as 203, not 305. Messages that match no pattern fall back to code 100. Code 900 is the exception: the engine sets it directly.
 
 ## Error Code Ranges
 
@@ -49,7 +49,7 @@ Codes are assigned by pattern-matching the failure message text. Messages that m
 | <span id="302" />302 | Not Found | HTTP 404 — The requested file does not exist on the server. |
 | <span id="303" />303 | Range Not Satisfiable | HTTP 416 — The server cannot fulfill the byte range request. The file may have changed. |
 | <span id="304" />304 | Too Many Requests | HTTP 429 — Rate limited by the server. Try again later. |
-| <span id="305" />305 | Server Error | HTTP 5xx — An error occurred on the server side. |
+| <span id="305" />305 | Server Error | HTTP 500, 502, or another server-side error (503 maps to its own code). |
 | <span id="306" />306 | Service Unavailable | HTTP 503 — The server is temporarily unavailable. |
 | <span id="307" />307 | Redirect Loop | Too many HTTP redirects were followed. |
 | <span id="308" />308 | Response Error | An unspecified HTTP response error. |
@@ -120,7 +120,7 @@ Codes are assigned by pattern-matching the failure message text. Messages that m
 
 | Code | Name | Description |
 |------|------|-------------|
-| <span id="900" />900 | Engine Not Running | The download engine is not running. Try restarting the application. |
+| <span id="900" />900 | Engine Not Running | The BitTorrent engine was unavailable when the torrent or magnet task was added (message: "Torrent engine not available"). Restart the app or `risuko serve`. |
 
 ---
 

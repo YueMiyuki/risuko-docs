@@ -25,10 +25,10 @@ The consumer is `ConfigManager::new(&dyn ConfigDirProvider)`. `ConfigManager::wi
 
 ### Default directory (CLI, NAPI)
 
-The CLI and Node.js bindings do not implement the trait. Each resolves the directory with a plain helper and loads `system.json` / `user.json` from it directly:
+The CLI and Node.js bindings do not implement the trait. Each resolves the directory with a plain helper (`get_config_dir` in `risuko-cli/src/commands.rs`, `default_config_dir` in `risuko-napi/src/lib.rs`) and loads `system.json` / `user.json` from it directly. In Node.js, `startEngine({ configDir })` overrides the default:
 
 ```rust
-fn get_config_dir() -> PathBuf {
+fn default_config_dir() -> PathBuf {
     dirs::config_dir()
         .map(|d| d.join("dev.risuko.app"))
         .unwrap_or_else(|| PathBuf::from("."))
@@ -57,7 +57,7 @@ pub trait EventSink: Send + Sync {
 | `NoopEventSink` | Desktop app bootstrap (`AppState::new` constructs a `NoopEventSink` internally and builds `RssManager` / `UploadSinkManager` with it as a placeholder sink), engine tests | Discards events silently |
 | `TauriEventSink` | Desktop App (`src/bridge.rs`) | Calls `AppHandle::emit()` to webview |
 
-After `AppState` is built, the desktop app swaps the upload manager's bootstrap sink for the live `TauriEventSink` via `UploadSinkManager::set_event_sink`. The Node.js bindings and the standalone CLI use the `EventBroadcaster` instead of constructing an `EventSink`: the NAPI `on_event` calls `events.subscribe()` and forwards each `EngineEvent` to a JS callback through a `ThreadsafeFunction`, while the CLI hands the broadcaster to its `RpcServer`, whose WebSocket handler subscribes and relays events to RPC clients.
+After `AppState` is built, the desktop app swaps the upload manager's bootstrap sink for the live `TauriEventSink` via `UploadSinkManager::set_event_sink`. `RssManager` keeps the no-op sink, so its events are discarded. The Node.js bindings and the standalone CLI use the `EventBroadcaster` instead of constructing an `EventSink`: the NAPI `on_event` calls `events.subscribe()` and forwards each `EngineEvent` to a JS callback through a `ThreadsafeFunction`, while the CLI hands the broadcaster to its `RpcServer`, whose WebSocket handler subscribes and relays events to RPC clients.
 
 ### NoopEventSink
 
@@ -71,7 +71,7 @@ impl EventSink for NoopEventSink {
 
 ## StorageBackend
 
-Persistent key-value storage for RSS feeds, upload-sink configuration, and other state.
+Persistent key-value storage for RSS feeds, upload-sink configuration, download statistics, and other state.
 
 ```rust
 pub trait StorageBackend: Send + Sync {
@@ -84,10 +84,10 @@ pub trait StorageBackend: Send + Sync {
 
 | Implementation | Used By | Behavior |
 |---------------|---------|----------|
-| `FileStorage` | Engine tests; available to embedders via `FileStorage::new(dir)` | Pretty-printed `{key}.json` files in a directory; keys are validated against path traversal and writes are atomic (temp file + rename) |
+| `FileStorage` | Engine tests; available to embedders via `FileStorage::new(dir)` | Pretty-printed `{key}.json` files in a directory; keys are validated against path traversal; writes are atomic (unique 0600 temp file + fsync + rename + directory fsync); `new` prunes stale temp files older than 24 hours left by dead processes |
 | `TauriStorage` | Desktop App (`src/bridge.rs`) | Wraps `tauri_plugin_store`; each key is a store file with the value under its `"data"` entry |
 
-The CLI and Node.js bindings do not construct `RssManager` or `UploadSinkManager`, so they never use a `StorageBackend`.
+The CLI and Node.js bindings do not construct `RssManager`, `UploadSinkManager`, or `DownloadStatsManager`, so they never use a `StorageBackend`.
 
 ### FileStorage
 
@@ -97,8 +97,12 @@ pub struct FileStorage {
 }
 
 impl FileStorage {
-    /// Reject keys that could escape the storage directory. Keys map to
-    /// `<dir>/<key>.json`, so a key like `../foo` or `a/b` must not traverse out.
+    pub fn new(dir: PathBuf) -> Self {
+        cleanup_stale_atomic_write_files(&dir);
+        Self { dir }
+    }
+
+    /// Reject keys that could escape the storage directory
     fn safe_path(&self, key: &str) -> Result<PathBuf, String> {
         if key.is_empty()
             || key == "."
@@ -120,7 +124,6 @@ impl StorageBackend for FileStorage {
     fn load(&self, key: &str) -> Result<Option<Value>, String> {
         let path = self.safe_path(key)?;
         // Read directly and treat NotFound as "no value" to avoid a TOCTOU gap
-        // between an exists() check and the read
         let data = match std::fs::read_to_string(&path) {
             Ok(data) => data,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -133,42 +136,41 @@ impl StorageBackend for FileStorage {
 
     fn save(&self, key: &str, value: &Value) -> Result<(), String> {
         let path = self.safe_path(key)?;
-        std::fs::create_dir_all(&self.dir)
-            .map_err(|e| format!("Failed to create dir {}: {e}", self.dir.display()))?;
         let data =
             serde_json::to_string_pretty(value).map_err(|e| format!("Failed to serialize: {e}"))?;
-        // Atomic write: temp file + rename so a crash mid-write can't corrupt
-        // the existing persisted JSON
-        let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, data)
-            .map_err(|e| format!("Failed to write {}: {e}", tmp.display()))?;
-        std::fs::rename(&tmp, &path).map_err(|e| {
-            let _ = std::fs::remove_file(&tmp);
-            format!("Failed to persist {}: {e}", path.display())
-        })?;
-        Ok(())
+        // Unique `.risuko-atomic-<pid>-*.tmp` file (0600), fsync, rename, then fsync the directory
+        write_file_atomically(&path, data.as_bytes())
     }
 }
 ```
 
 ## How the Engine Uses Traits
 
-Both `RssManager` and `UploadSinkManager` are constructed from `dyn` trait objects today; `ConfigManager` takes a `&dyn ConfigDirProvider`; `TaskManager` takes a concrete `EventBroadcaster` and a `&Path` for the config directory:
+`RssManager` and `UploadSinkManager` are constructed from `dyn` trait objects today, and `DownloadStatsManager` takes a `dyn StorageBackend`; `ConfigManager` takes a `&dyn ConfigDirProvider`; `TaskManager` takes a concrete `EventBroadcaster` and a `&Path` for the config directory:
 
 ```rust
-// Desktop app setup (simplified, src-tauri/src/lib.rs)
+// Desktop app setup (simplified, src-tauri/src/lib.rs and src-tauri/src/state.rs)
 let config_dir_provider = bridge::TauriConfigDir::new(handle);
 let event_sink: Arc<dyn EventSink> = Arc::new(bridge::TauriEventSink::new(handle));
 let storage: Arc<dyn StorageBackend> = Arc::new(bridge::TauriStorage::new(handle));
 
 let config = ConfigManager::new(&config_dir_provider)?;
-let rss = RssManager::new(storage.clone(), event_sink.clone());
-let upload_sinks = UploadSinkManager::new(storage, event_sink.clone());
 
-start_engine(&config, event_sink, Some(upload_sinks)).await?;
+// AppState::new builds the RSS and upload managers with a NoopEventSink placeholder
+let noop: Arc<dyn EventSink> = Arc::new(NoopEventSink);
+let rss = RssManager::new(storage.clone(), noop.clone());
+let stats = DownloadStatsManager::new(storage.clone());
+let upload_sinks = UploadSinkManager::new(storage, noop);
+
+// Only the upload manager is switched to the live sink; RssManager keeps the no-op one
+upload_sinks.set_event_sink(event_sink.clone());
+
+// The engine gets its own ConfigManager for the same directory
+let engine_config = ConfigManager::with_dir(config_dir)?;
+start_engine(&engine_config, event_sink, Some(upload_sinks)).await?;
 ```
 
-Inside `start_engine` (`engine/mod.rs`), an event bridge subscribes to the `EventBroadcaster` and forwards each `EngineEvent` to the `EventSink` as `engine:*` events. Consumers that bypass `start_engine` wire the `EventBroadcaster` themselves — NAPI subscribes via `events.subscribe()` and forwards each `EngineEvent` to a JS callback, while the CLI passes the broadcaster to its `RpcServer`, which subscribes and relays events to RPC clients; the trait surface only matters for `ConfigManager`, `RssManager`, `UploadSinkManager`, and for `start_engine` in `engine/mod.rs`.
+Inside `start_engine` (`engine/mod.rs`), an event bridge subscribes to the `EventBroadcaster` and forwards each `EngineEvent` to the `EventSink` as `engine:*` events. Consumers that bypass `start_engine` wire the `EventBroadcaster` themselves — NAPI subscribes via `events.subscribe()` and forwards each `EngineEvent` to a JS callback, while the CLI passes the broadcaster to its `RpcServer`, which subscribes and relays events to RPC clients; the trait surface only matters for `ConfigManager`, `RssManager`, `UploadSinkManager`, `DownloadStatsManager`, and for `start_engine` in `engine/mod.rs`.
 
 ## Custom Implementations
 

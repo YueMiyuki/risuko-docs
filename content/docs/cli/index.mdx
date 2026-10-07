@@ -49,10 +49,14 @@ risuko <command> [options]
 ## Global Behavior
 
 - The CLI connects to the engine's JSON-RPC server (default port `16800`); the exceptions are `config`, which reads and writes the local config files directly, and `serve`, which starts the engine itself
-- If no engine is running, the `download` command starts a temporary headless instance
+- If no engine is running, the `download` command starts a temporary headless engine on `--rpc-port` and stops it when the download finishes
+- The CLI dials the `rpc-host` config value; a wildcard host (`0.0.0.0`, `::`) is dialled as `127.0.0.1`
 - Use `--rpc-port` on most commands to connect to a non-default port
-- Use `--rpc-secret` to pass an authentication token when the engine has `rpc-secret` configured; if omitted, the CLI falls back to the `rpc-secret` value from config
-- Use `--json` for machine-readable output
+- Use `--rpc-secret` to pass an authentication token when the engine has `rpc-secret` configured; if omitted, the CLI falls back to the `rpc-secret` value from `system.json` in the config directory
+- A missing or wrong secret is reported as "No Risuko instance running…", because the liveness check is rejected as unauthorized
+- Use `--json` for machine-readable output on `download`, `status`, `global-stat`, `files`, `peers`, `config list`, and `rss list`; `pause-all`, `resume-all`, `purge`, and `shutdown` accept the flag but ignore it
+- Errors print `Error: <message>` to stderr and exit with status 1; `remove` exits 0 even if some GIDs fail
+- `RUST_LOG` overrides the log level
 
 <Cards>
   <Card title="Command Reference" href="/docs/cli/commands" />

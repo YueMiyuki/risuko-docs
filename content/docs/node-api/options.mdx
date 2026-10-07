@@ -38,12 +38,13 @@ await changeOption(gid, { "seed-time": "0" });
 
 ### Changeable Options
 
-`changeOption` merges the provided keys into the task's option map, so any key can be stored. Only `seed-time` is acted on immediately:
+`changeOption` merges the provided keys into the task's option map, so any key can be stored. These keys affect a running task:
 
 | Key | Effect on a running task |
 |-----|--------------------------|
-| `seed-time` | Setting to `"0"` while a torrent is seeding (and the effective `seed-ratio` is `0` or absent) stops seeding immediately and emits `risuko.onDownloadComplete` |
-| `seed-ratio` | Consulted only as the guard for the `seed-time` stop above; the seeding goals themselves are read from global options each tick |
+| `seed-time`, `seed-ratio`, `keep-seeding` | Per-task seeding goals. They override the global values on every progress tick (unset keys fall back to the globals). `seed-time` and `seed-ratio` accept numbers or numeric strings; `keep-seeding` accepts a boolean or `"true"` / `"false"` |
+| `seed-time` = `0` | While a torrent is seeding and the effective `seed-ratio` is `0` or absent, seeding stops immediately and `risuko.onDownloadComplete` is emitted |
+| `select-file` | Torrents only: applied to the live torrent immediately. 1-based file indices with aria2-style ranges (`"1-3,7"`); padding files are not counted, and an empty string selects every file. Deselected files that share pieces with selected ones are kept as part files. See [File selection](/docs/guides/torrent#file-selection) |
 | `max-download-limit` | Stored on the task; the per-task speed limiter is built when a worker starts, so the new limit applies the next time the task is restarted (e.g. `pause` then `unpause`) |
 
 Other options are stored on the task and used the next time a relevant action runs (for example, `dir`/`out` when the task is restarted). To change URIs, the save path, or trackers on an existing task, use [`updateTask`](/docs/node-api/tasks#updatetask) instead.
@@ -67,6 +68,10 @@ console.log(global["max-overall-download-limit"]);
 ### changeGlobalOption
 
 Change global engine options. These affect new downloads and some aspects of running downloads.
+
+<Callout type="warn">
+Changes are held in memory only and are lost when the engine stops. To persist a setting, write it to `system.json` or `user.json` in the config directory before calling `startEngine`.
+</Callout>
 
 ```ts
 function changeGlobalOption(
@@ -93,11 +98,11 @@ Defaults come from `src-tauri/risuko-engine/src/config/defaults.rs` and are stor
 | `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, `0` = unlimited; updates the `SpeedLimiter` immediately) |
 | `split` | `16` | Default number of HTTP connections for new downloads and M3U8 segment workers |
 | `seed-ratio` | `0` | Stop seeding once the upload/download ratio reaches this value (`0` = no ratio goal; checked every second) |
-| `seed-time` | `0` | Stop seeding after this many minutes (`0` = no time goal) |
+| `seed-time` | `0` | Stop seeding after this many minutes (`0` = no time goal). With both `seed-ratio` and `seed-time` at `0` and `keep-seeding` off, torrents complete without seeding |
 | `keep-seeding` | `false` | Seed until stopped manually, ignoring `seed-ratio`/`seed-time` |
 | `user-agent` | Chrome UA string | Default user agent string |
 | `all-proxy` | `""` | Default HTTP-profile proxy URL |
-| `p2p-proxy` | `""` | Default P2P TCP proxy URL (hot-reloaded; restarts affected P2P downloads) |
+| `p2p-proxy` | `""` | Default P2P TCP proxy URL. Via the Node API the value is stored but the P2P route is not rebuilt; restart the engine to apply it |
 | `p2p-udp-proxy` | `""` | Optional P2P UDP proxy; empty reuses `p2p-proxy` |
 | `pbh-enable` | `false` | Start the PeerBanHelper Aria2Next RPC listener (read at `startEngine` only) |
 | `pbh-listen-port` | `16801` | PeerBanHelper RPC port (read at `startEngine` only) |
@@ -108,4 +113,4 @@ Defaults come from `src-tauri/risuko-engine/src/config/defaults.rs` and are stor
 | `nzb-body-timeout` | `30` | Maximum idle time in seconds between chunks while fetching an NZB URL body |
 | `rpc-listen-port` | `16800` | RPC server port (read at `startEngine` only) |
 
-`rpc-listen-port`, `rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`, `listen-port`, `dht-listen-port`, `ed2k-enable-kad`, `ed2k-kad-port`, `ed2k-port`, and most `bt-*` keys are read once at `startEngine`; changing them with `changeGlobalOption` has no effect until the engine is restarted. `p2p-proxy` / `p2p-udp-proxy` are hot-reloaded.
+`rpc-host`, `rpc-listen-port`, `rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`, `listen-port`, `dht-listen-port`, `ed2k-enable-kad`, `ed2k-kad-port`, `ed2k-port`, and most `bt-*` keys are read once at `startEngine`; changing them with `changeGlobalOption` has no effect until the engine is restarted. The same applies to `p2p-proxy` / `p2p-udp-proxy` through the Node API: only the desktop app rebuilds the P2P route when its settings are saved.

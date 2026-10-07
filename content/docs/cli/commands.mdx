@@ -5,19 +5,21 @@ description: Detailed reference for all Risuko CLI commands.
 
 ## download
 
-Download a file from a URL or a `.torrent` file path.
+Download a file from a URL, magnet link, or local `.torrent` file.
 
 ```bash
 risuko download <url>... [options]
 ```
 
-If no running engine is detected, a temporary headless instance is started automatically.
+If no running engine is detected, a temporary headless instance is started automatically and stopped when the download finishes.
+
+The command waits until the task ends. It exits 0 on completion, or 1 with `Download failed: <message>` or `Download was removed`. If seeding is configured (`--seed-ratio`, `--seed-time`, or `keep-seeding`), a torrent stays active until its seeding goal is met, so the command blocks until then. With `--json` it prints one JSON status object per line every 500 ms instead of a progress bar.
 
 ### Arguments
 
 | Argument | Description |
 |----------|-------------|
-| `url...` | URL(s), a magnet link, or a path to a `.torrent` file. Multiple URLs are treated as HTTP mirrors of the same file; torrent, magnet, media, and yt-dlp downloads accept only one input |
+| `url...` | URL(s), a magnet link, or a path to a `.torrent` file. Multiple URLs are treated as HTTP mirrors of the same file. The CLI rejects extra inputs alongside a local `.torrent` file, a media-host URL, or `--ytdlp`; if a magnet is mixed with other URLs, the engine keeps only the magnet. A `.torrent` is detected only when the path ends in `.torrent` and exists locally; a remote `.torrent` URL downloads as a plain file |
 
 ### Options
 
@@ -91,6 +93,8 @@ a1b2c3d4e5f6a7b8   active     ubuntu-24.04-server-amd64.iso      64.2%    12.4 M
 e5f6a7b8c9d0e1f2   waiting    archlinux-2024.04.01-x86_...        0.0%            -     1.2 GB
 c9d0e1f2a1b2c3d4   complete   node-v22.0.0.tar.gz               100.0%            -    89.4 MB
 ```
+
+The table lists all active tasks plus at most 100 waiting and 100 stopped tasks.
 
 With `--gid`, shows detailed information for a single task.
 
@@ -200,7 +204,7 @@ risuko purge [--rpc-port PORT] [--rpc-secret SECRET]
 
 ## config
 
-Manage engine configuration. Configuration is stored as JSON files in the config directory.
+Manage engine configuration. Configuration is stored as JSON files (`system.json` and `user.json`) in `<OS config dir>/dev.risuko.app`. These commands edit the files directly and do not talk to a running engine.
 
 ### config get
 
@@ -208,18 +212,27 @@ Manage engine configuration. Configuration is stored as JSON files in the config
 risuko config get <key>
 ```
 
+Prints the value from `user.json` layered over `system.json`. An unknown key prints `Key '<key>' not found` and exits 0.
+
 ### config set
 
 ```bash
 risuko config set <key> <value>
 ```
 
-The value is parsed as JSON; if parsing fails, it is stored as a plain string. Writes go to `user.json`:
+The value is parsed as JSON; if parsing fails, it is stored as a plain string. Writes always go to `user.json`.
+
+<Callout type="warn">
+The engine (`serve`, the temporary engine started by `download`, and the Node.js API) reads only [user-scope keys](/docs/configuration#user-config) from `user.json` (such as `rpc-host`, `keep-seeding`, `bt-*`, `pbh-*`, and `proxy`) plus the `engine-overrides` object. Engine keys such as `dir`, `max-concurrent-downloads`, `split`, `doh-*`, and `rpc-secret` are read from `system.json` only, so `config set dir …` has no effect even though `config get` and `config list` show the new value.
+</Callout>
+
+To change engine keys from the CLI, write them into `engine-overrides`. This replaces the whole object, and `rpc-*`, `*-port`, and `*-secret` keys inside it are ignored:
 
 ```bash
-risuko config set max-concurrent-downloads 8
-risuko config set dir /home/user/downloads
+risuko config set engine-overrides '{"dir":"/home/user/downloads","max-concurrent-downloads":8}'
 ```
+
+For `rpc-secret` and ports, edit `system.json` directly.
 
 ### config list
 
@@ -278,9 +291,9 @@ The engine runs until interrupted (`Ctrl+C`) or a `shutdown` command is received
 | Option | Short | Default | Description |
 |--------|-------|---------|-------------|
 | `--rpc-port` | — | `16800` | RPC listen port |
-| `--verbose` | `-v` | `false` | Enable verbose logging |
+| `--verbose` | `-v` | `false` | Set the log level to `debug,risuko_engine=trace` (default `info`); `RUST_LOG` overrides it |
 
-There is no `--rpc-secret` flag for `serve`; the RPC secret comes from the `rpc-secret` config key. The optional PeerBanHelper listener (`pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`) is also read from config and started alongside the primary RPC when enabled.
+There is no `--rpc-secret` flag for `serve`; the RPC secret comes from the `rpc-secret` key in `system.json`. The optional PeerBanHelper listener (`pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`) is also read from config and started alongside the primary RPC when enabled.
 
 ---
 

@@ -58,7 +58,7 @@ import risuko from "@risuko/risuko-js";
 
 await risuko.startEngine();
 
-risuko.onEvent((event, gid) => {
+await risuko.onEvent((event, gid) => {
   console.log(`[${event}] ${gid}`);
 });
 

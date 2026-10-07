@@ -7,6 +7,36 @@ Risuko includes a full BitTorrent client powered by [`risuko-bt`](https://github
 
 For v2 and hybrid torrents the task exposes an additional `infoHashV2` (SHA-256) field alongside `infoHash`, plus `metaVersion` (`v1`, `v2`, or `hybrid`).
 
+## Supported BEPs
+
+| BEP | Feature | Notes |
+|-----|---------|-------|
+| 3 | BitTorrent protocol | TCP peer wire, rarest-first with endgame |
+| 4 | Reserved handshake bits | Advertises the extension protocol, DHT, Fast, and v2 bits |
+| 5 | DHT | Continuous `get_peers` and `announce_peer` per torrent |
+| 6 | Fast Extension | `HaveAll`/`HaveNone`, `Reject`, `Suggest`, allowed-fast sets |
+| 7 | IPv6 tracker extension | Announces over IPv4 and IPv6 separately and merges the peers; accepts `peers6` |
+| 8 | Tracker peer obfuscation | See [Trackers](#trackers) |
+| 9 | Metadata exchange | `ut_metadata` for magnets; `x.pe` peers are contacted directly |
+| 10 | Extension protocol | Advertises the client as `Risuko <version>` |
+| 11 | Peer exchange | `ut_pex` with encryption, seed, µTP, hole-punch, and reachable flags |
+| 12 | Multitracker | Tiers tried in order, shuffled within a tier; a responding tracker moves to the front |
+| 14 | Local Service Discovery | Announces every info-hash the torrent is known by |
+| 15 | UDP trackers | IPv4 and IPv6 |
+| 19 | WebSeeds | See [WebSeeds](#webseeds) |
+| 20 | Peer ID | `-RS` + one character each for major, minor, and patch version + `0-`, e.g. `-RS0700-` |
+| 21 | Partial seeds | A peer's `upload_only` marks it as a seed in PEX |
+| 23 | Compact peer lists | |
+| 27 | Private torrents | See the callout under [WebSeeds](#webseeds) |
+| 29 | µTP | See [Connections and Encryption](#connections-and-encryption) |
+| 32 | IPv6 DHT | When an IPv6 socket can be bound |
+| 41 | UDP tracker URL data | The path and query of `udp://` URLs (passkeys) are sent to the tracker |
+| 43 | Read-only DHT nodes | Read-only queriers are answered but kept out of the routing table |
+| 47 | Padding files | Hidden from file lists, never written to disk, not counted by `select-file` |
+| 52 | BitTorrent v2 | Merkle verification, piece layers, and hash requests with proofs |
+| 53 | Magnet `so=` | Used as the initial file selection |
+| 55 | Hole punching | `ut_holepunch` rendezvous for NATed PEX peers |
+
 ## Magnet Links
 
 Add a magnet link from the CLI, the desktop app, or the Node.js API. The CLI
@@ -22,12 +52,19 @@ risuko download "magnet:?xt=urn:btih:abc123def456..."
 ### Node.js
 
 ```js
-import { addMagnet } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { addMagnet } = risuko;
 
 const gid = await addMagnet("magnet:?xt=urn:btih:abc123def456...", {
   dir: "/downloads",
 });
 ```
+
+Besides the info-hash (`xt=urn:btih:` and/or `xt=urn:btmh:`), Risuko reads
+`dn=` (display name), `tr=` (trackers), `x.pe=` (peers to dial directly while
+fetching the metadata; IP literals or hostnames), and `so=` (BEP-53 file
+selection, used when the task sets no `select-file`).
 
 ## .torrent Files
 
@@ -41,11 +78,44 @@ risuko download ./ubuntu-24.04.torrent -d ~/Downloads
 
 ```js
 import { readFile } from "node:fs/promises";
-import { addTorrent } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { addTorrent } = risuko;
 
 const data = await readFile("./ubuntu-24.04.torrent");
 const gid = await addTorrent(data, { dir: "/downloads" });
 ```
+
+## File Selection
+
+By default every file in a torrent is downloaded. The `select-file` option
+limits the download to a subset using aria2's syntax: 1-based file indices,
+separated by commas, with `a-b` ranges.
+
+```js
+const gid = await addTorrent(data, { dir: "/downloads", "select-file": "1-3,7" });
+```
+
+The desktop app sets it from the file list in the **Add Task** dialog for
+both `.torrent` files and magnets.
+
+- Indices follow the file list shown by `getFiles`, which hides BEP-47
+  padding files, so padding entries are never counted.
+- For a magnet without `select-file`, the BEP-53 `so=` parameter is used, and
+  the task's `select-file` is filled in from it.
+- `changeOption(gid, { "select-file": "2" })` applies a new selection to a
+  running torrent immediately; an empty string selects every file again.
+  Pieces needed only by deselected files are no longer requested, and newly
+  selected files are downloaded from where they left off.
+- Out-of-range indices are ignored.
+
+A piece can span the end of one file and the start of the next. When a
+selected file shares a piece with a deselected one, the deselected file's
+bytes from that piece are kept in a part file instead of creating the
+deselected file on disk. Part files live under
+`.risuko-parts/<info-hash>/` in the torrent's root folder, are moved into
+place if the file is selected later, and are removed with the task when
+files are deleted.
 
 ## WebSeeds
 
@@ -95,7 +165,7 @@ await changeGlobalOption({ "bt-create-subfolder": false });
 ```
 
 ```bash
-risuko config set bt-create-subfolder '"false"'
+risuko config set bt-create-subfolder false
 ```
 
 The same option is accepted per-task and overrides the global default.
@@ -114,7 +184,7 @@ By default, Risuko does **not** seed after a torrent completes (`keep-seeding` i
 Seed indefinitely until the task is stopped manually:
 
 ```js
-await changeGlobalOption({ "keep-seeding": "true" });
+await changeGlobalOption({ "keep-seeding": true });
 ```
 
 When `keep-seeding` is enabled, the `seed-time` and `seed-ratio` limits are ignored.
@@ -142,8 +212,12 @@ risuko download ./ubuntu.torrent --seed-time 60
 ```
 
 ```js
-await addMagnet("magnet:?xt=...", { "seed-time": "60" });
+await addMagnet("magnet:?xt=...", { "seed-time": 60 });
 ```
+
+Per-task `seed-time` and `seed-ratio` accept numbers or numeric strings and
+override the global values for that task, including when changed later with
+`changeOption`.
 
 <Callout type="info">
 Seeding starts whenever `keep-seeding` is true, or `seed-time > 0`, or `seed-ratio > 0`. If `keep-seeding` is off, seeding stops when `seed-time` elapses or `seed-ratio` is reached, whichever comes first.
@@ -161,7 +235,7 @@ BitTorrent downloads emit two completion events:
 2. **`risuko.onDownloadComplete`** — Seeding finished (or limits reached)
 
 ```js
-onEvent((event, gid) => {
+await onEvent((event, gid) => {
   if (event === "risuko.onBtDownloadComplete") {
     console.log("Download done, seeding...");
   }
@@ -182,6 +256,46 @@ risuko peers <gid>
 ```js
 const peers = await getPeers(gid);
 ```
+
+## Connections and Encryption
+
+Outbound peers are dialled over TCP first, falling back to µTP on the same
+UDP port as the listener when the TCP dial or handshake fails. Peers reached
+through a BEP-55 hole-punch rendezvous are dialled over µTP first. Inbound
+TCP and µTP connections are both accepted.
+
+The µTP transport implements LEDBAT congestion control, selective ACKs,
+fast retransmit, Nagle-style coalescing of small writes, and path-MTU
+discovery: packets start at a conservative size and grow using
+don't-fragment probes where the OS allows toggling that flag.
+
+Message Stream Encryption (MSE/PE, RC4) works over both TCP and µTP and is
+controlled by `bt-encryption-policy`:
+
+| Value | Outbound | Inbound |
+|-------|----------|---------|
+| `plaintext` | Plaintext handshake only | MSE connections are rejected |
+| `prefer` (default) | Plaintext first, MSE on a fresh connection if that fails; peers learned from an obfuscated tracker are tried with MSE first | Plaintext and MSE |
+| `require` | MSE only | Plaintext connections are rejected |
+
+Unknown values fall back to `prefer`. Unless the policy is `plaintext`, the
+extension handshake sets `e=1` to tell peers this client prefers encryption.
+
+## Trackers
+
+HTTP(S) and UDP trackers from `announce`, `announce-list`, `tr=` magnet
+parameters, and `bt-tracker` are used together. `announce-list` tiers follow
+BEP-12. Without a proxy or fixed source address, each tracker is announced
+over IPv4 and IPv6 separately and the peer lists are merged (BEP-7). The path
+and query of a `udp://` tracker URL, such as a passkey, are sent with UDP
+announces (BEP-41).
+
+Torrents with an `obfuscate-announce-list` (BEP-8) announce to its HTTP(S)
+trackers first, sending `sha_ih` (the SHA-1 of the info-hash) instead of the
+info-hash and the listen port XOR-ed with an RC4 keystream. Peer lists in the
+reply are decrypted with the same keystream, and those peers are dialled with
+MSE first. UDP entries in that list are skipped because UDP announces cannot
+carry `sha_ih`.
 
 ## P2P Proxy
 

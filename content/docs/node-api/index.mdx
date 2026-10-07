@@ -12,7 +12,9 @@ icon: Code
 npm install @risuko/risuko-js
 ```
 
-Requires Node.js 22 or later. Pre-built binaries cover macOS, Linux, and Windows on x64 and arm64.
+Requires Node.js 22 or later. Pre-built binaries cover macOS, Linux (glibc), and Windows on x64 and arm64.
+
+The package is CommonJS, so ESM code imports the default export and destructures the functions from it; named imports such as `import { startEngine } from "@risuko/risuko-js"` fail with a `SyntaxError`.
 
 ## Overview
 
@@ -27,20 +29,18 @@ The API is organized into six areas:
 | [Options](/docs/node-api/options) | `getOption`, `getGlobalOption`, `changeOption`, `changeGlobalOption` |
 | [Session](/docs/node-api/engine#session-management) | `saveSession`, `purgeDownloadResult`, `removeDownloadResult` |
 
+Some engine features have no Node binding and are only reachable over [JSON-RPC](/docs/architecture/rpc) (start the engine with `enableRpc`): `addMedia`, `addMetalink`, `addNzb`, `changePosition`, `getServers`, `forcePause`/`forcePauseAll`, `forceRemove`, the routing-rule methods, and `setBtPeerBlocklist`.
+
 ## Quick Example
 
 ```js
-import {
-  startEngine,
-  addUri,
-  tellStatus,
-  onEvent,
-  stopEngine,
-} from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, addUri, tellStatus, onEvent, stopEngine } = risuko;
 
 await startEngine({ rpcPort: 16800 });
 
-onEvent((event, gid) => {
+await onEvent((event, gid) => {
   console.log(`[${event}] ${gid}`);
 });
 
@@ -57,7 +57,7 @@ await stopEngine();
 
 ## TypeScript Support
 
-Full TypeScript declarations are included. All types are exported from the main module:
+Full TypeScript declarations are included. All types are exported from the main module (type-only imports are erased, so they are unaffected by the CommonJS limitation):
 
 ```ts
 import type { EngineConfig, EngineEventName } from "@risuko/risuko-js";

@@ -116,7 +116,7 @@ and insufficient recovery all keep the available partial files.
 Error `554` means that the PAR2 set cannot recover the missing data. For example:
 
 ```
-PAR2 recovery is insufficient: 184 blocks are needed, but only 62 are available.
+PAR2 recovery is insufficient: need 184 blocks, have 62
 ```
 
 That set is short by 122 recovery blocks. The message is not an HTTP status and
@@ -195,8 +195,10 @@ these global or per-task modes:
 | `delete-par2` | Delete PAR2 files; keep archive volumes |
 | `delete-par2-and-volumes` | Delete PAR2 files and archive volumes after verified extraction |
 
-The app currently writes `delete-par2-and-archives`; the engine accepts it as
-an alias for `delete-par2-and-volumes`. Risuko never deletes the task manifest
+The app lists `delete-par2-and-archives` but keeps it disabled; the engine
+accepts it as an alias for `delete-par2-and-volumes`. Because the current
+worker does not extract archives, it treats both as `delete-par2`. Risuko never
+deletes the task manifest
 or resume sidecars as part of cleanup. On a read-only destination, a cleanup
 failure does not turn an otherwise verified download into a retryable transfer
 failure.
@@ -210,7 +212,9 @@ profile does not reappear on another device.
 
 The sync payload never contains usernames, passwords, archive passwords,
 provider health or cooldown state, task-specific overrides, article IDs, or
-filesystem paths. Credentials stay in the local OS keychain. When a synced
+filesystem paths. Credentials stay in the local OS keychain; if the keychain is
+unavailable or a write fails, Risuko stores them in `usenet-credentials.json` in
+the config directory instead. When a synced
 archive limit cannot be accepted, Risuko clamps it and marks the category as
 adjusted.
 

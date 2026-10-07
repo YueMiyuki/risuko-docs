@@ -108,7 +108,8 @@ const result = await invoke("import_browser_cookies", {
 // localhost page in the browser; times out after 60 s)
 const { userAgent } = await invoke("capture_user_agent");
 
-// Retry a failed task with the saved cookies for its host
+// Re-queue an HTTP task with this cookie and User-Agent (an empty field keeps
+// the task's current value)
 await invoke("retry_with_cookies", {
   gid: "abc123",
   payload: {

@@ -74,8 +74,8 @@ The run is fire-and-forget: it logs a one-line summary at `info` on
 success or `warn` on a non-zero exit, spawn failure, or timeout. The
 failure line includes the captured stderr; stdout is not logged. Both
 streams are captured and truncated to **8 KiB** with a `...[truncated]`
-marker — the **Test script** button returns the full captured stdout and
-stderr to the UI. Scripts that run past `completion-script-timeout-ms`
+marker. The **Test script** button shows both captured streams in the UI,
+with the same 8 KiB truncation. Scripts that run past `completion-script-timeout-ms`
 are reported with `timed_out: true`; Risuko stops waiting for them but
 does not kill the process.
 

@@ -10,13 +10,22 @@ dedicated folders without configuring every task by hand.
 
 ## How a Task Is Routed
 
-When a new task is created, the engine picks a filename hint — the task's
-`out` option if set, otherwise a name inferred from the URI (last path
-segment for HTTP/FTP, the filename embedded in an ed2k link, the playlist
-basename with a `.ts` extension for m3u8). Torrent and magnet tasks match
-against the placeholders `download.torrent` / `download.magnet`, and media
-tasks use an empty hint, so neither routes by content filename. The engine
-then walks the configured rules:
+When a new task is created, the engine picks a filename hint:
+
+- **HTTP, FTP/SFTP, M3U8, media, torrent, and magnet** tasks use the task's
+  `out` option if set. Otherwise HTTP/FTP use the last URI path segment, M3U8
+  uses the playlist basename with a `.ts` extension, torrent and magnet tasks
+  use the placeholders `download.torrent` / `download.magnet`, and media tasks
+  use an empty hint, so these last three don't route by content filename.
+- **Other protocols ignore `out`.** ED2K uses the filename embedded in the
+  link, Metalink the first file's name, NZB the NZB title (then the first
+  file's name, then `usenet`), and ADC, Gnutella, G2, and giFT the name parsed
+  from the URI.
+
+A trailing `.part` on the hint is ignored, so desktop tasks (whose `out`
+carries a `.part` suffix while downloading) match on their final name. Desktop
+magnet links without a rename get a `download-<hash>` name and so don't route
+by content filename. The engine then walks the configured rules:
 
 1. **Custom routing rules** — the first **enabled** rule whose
    case-insensitive glob `pattern` matches the filename wins. The matching
@@ -61,7 +70,8 @@ All fields except `enabled` are required when adding a rule over RPC.
 ### Desktop App
 
 Open **Preferences → Basic → Task Routing Rules** to add, edit, toggle, and
-remove rules. Changes apply when the preferences form is saved.
+remove rules. Changes are saved with the preferences form but the engine reads
+the rules only at startup, so they take effect after the engine restarts.
 
 ### RPC
 

@@ -28,14 +28,15 @@ risuko download https://example.com/file.zip --proxy http://proxy.corp.com:8080
 ### With DNS over HTTPS
 
 ```bash
-risuko config set doh-enable true
-risuko config set doh-url https://cloudflare-dns.com/dns-query
-risuko config set doh-bootstrap "1.1.1.1,1.0.0.1"
+risuko config set engine-overrides '{"doh-enable":true,"doh-url":"https://cloudflare-dns.com/dns-query","doh-bootstrap":"1.1.1.1,1.0.0.1"}'
 ```
 
-DoH is engine-wide configuration, not a per-download flag. The engine reads
-the `doh-*` keys (`doh-enable`, `doh-url`, `doh-bootstrap`, `doh-fallback`)
-at startup, so restart a running `risuko serve` for changes to take effect.
+DoH is engine-wide configuration, not a per-download flag. The `doh-*` keys
+(`doh-enable`, `doh-url`, `doh-bootstrap`, `doh-fallback`) are system keys, so
+`risuko config set doh-enable true` alone has no effect; put them in
+`engine-overrides` (as above, which replaces the whole object) or in
+`system.json`. The engine reads them at startup, so restart a running
+`risuko serve` for changes to take effect.
 
 ### With authentication
 
@@ -113,15 +114,21 @@ from another machine, set `rpc-host` in the config on both ends.
 
 ### With an RPC secret
 
-```bash
-risuko config set rpc-secret mysecret
+Set `"rpc-secret": "mysecret"` in `system.json` in the config directory
+(`<OS config dir>/dev.risuko.app`). `risuko config set rpc-secret` writes
+`user.json`, which the engine does not read for this key, and
+`engine-overrides` ignores `*-secret` keys.
 
-# `serve` has no --rpc-secret flag; it reads the secret from config
+```bash
+# `serve` has no --rpc-secret flag; it reads the secret from system.json
 risuko serve
 
-# Clients pass --rpc-secret (or read it from the same config file)
+# Clients pass --rpc-secret (or read it from the same system.json)
 risuko status --rpc-secret mysecret
 ```
+
+A server with an empty secret accepts any token, so a working
+`--rpc-secret` call does not prove authentication is on.
 
 ### Graceful shutdown
 
@@ -164,16 +171,13 @@ risuko rss remove feed_abc123
 risuko config list
 ```
 
-### Change download directory
+### Change download directory and max concurrent downloads
+
+`dir` and `max-concurrent-downloads` are system keys, so set them through
+`engine-overrides` (this replaces the whole object) or edit `system.json`:
 
 ```bash
-risuko config set dir '"/home/user/downloads"'
-```
-
-### Set max concurrent downloads
-
-```bash
-risuko config set max-concurrent-downloads 5
+risuko config set engine-overrides '{"dir":"/home/user/downloads","max-concurrent-downloads":5}'
 ```
 
 ### Check a specific setting
@@ -181,6 +185,10 @@ risuko config set max-concurrent-downloads 5
 ```bash
 risuko config get dir
 ```
+
+`config get` and `config list` show `user.json` layered over `system.json`,
+which is not always what the engine uses; see
+[Configuration](/docs/configuration).
 
 ## Scripting
 

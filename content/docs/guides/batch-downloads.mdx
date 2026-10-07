@@ -21,8 +21,10 @@ https://example.com/another.zip
   rename.
 - A per-line `Rename:` always wins over the form-level **Rename** field
   (which still supports the index expansion rule, e.g. `file-(01+1).zip`).
-- Magnet links and `.torrent` files are not affected by this directive
-  (their output names come from the torrent metadata).
+- On a magnet link the rename is passed as the task's `out`, which only
+  feeds [task routing](/docs/guides/task-routing); the downloaded files keep
+  the names from the torrent metadata. `.torrent` files are added separately
+  and are not affected.
 
 For `thunder://` links and `curl ...` paste-as-task lines, the directive is
 parsed off the line first; the remaining link or command is decoded
@@ -32,13 +34,13 @@ afterwards.
 
 The desktop app can hold URI tasks until a future time. In the Add Task dialog,
 set **Time** before submitting the batch; Risuko stores the Unix timestamp as
-the `risuko-start-at` task option and creates each non-torrent item with status
-`scheduled`.
+the `risuko-start-at` task option and creates each item other than torrents
+and magnet links with status `scheduled`.
 
 - Scheduled items live in the **Scheduled** list until their `startAt` time.
-- Torrent items ignore the schedule field and start immediately.
-- Existing non-torrent tasks can be scheduled, rescheduled, or started now from
-  the task action menu.
+- Torrent and magnet items ignore the schedule field and start immediately.
+- From the task action menu, waiting or paused non-torrent tasks can be
+  scheduled, and scheduled tasks can be rescheduled or started now.
 - If the app misses the start time by more than 5 minutes, the task remains
   scheduled with `scheduleMissed: true` and the desktop app offers to start the
   missed tasks manually.
@@ -111,7 +113,9 @@ risuko purge         # clear completed/error/removed results
 ### Simple Batch
 
 ```js
-import { startEngine, addUri } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, addUri } = risuko;
 
 const urls = [
   "https://example.com/file1.zip",
@@ -133,7 +137,9 @@ console.log(`Started ${gids.length} downloads`);
 ### With Concurrency Control
 
 ```js
-import { startEngine, changeGlobalOption, addUri, onEvent } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, changeGlobalOption, addUri, onEvent } = risuko;
 
 await startEngine();
 
@@ -145,7 +151,7 @@ const urls = Array.from({ length: 20 }, (_, i) =>
 );
 
 let completed = 0;
-onEvent((eventName, gid) => {
+await onEvent((eventName, gid) => {
   if (eventName === "risuko.onDownloadComplete") {
     completed++;
     console.log(`Progress: ${completed}/${urls.length} (${gid})`);
@@ -160,7 +166,9 @@ for (const url of urls) {
 ### With Speed Limiting
 
 ```js
-import { startEngine, changeGlobalOption } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { startEngine, changeGlobalOption } = risuko;
 
 await startEngine();
 

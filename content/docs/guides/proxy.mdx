@@ -33,6 +33,9 @@ independently.
 | **Update Trackers** | Tracker-list source requests (the lists fetched in Preferences). BitTorrent tracker *announces* use the P2P profile, not this scope |
 | **Update Application** | The signed desktop update manifest and package download |
 
+Implicit FTPS (port 990) cannot be proxied: such a download fails instead of
+connecting directly unless its host is in the bypass list.
+
 The native HTTP client evaluates bypass rules for every connection, including
 redirect targets. yt-dlp receives a proxy option for the submitted media URL
 and controls its own redirects and secondary requests, so media hosts beyond
@@ -61,12 +64,17 @@ local network.
 
 SOCKS5 or SOCKS5H is required for DHT, UDP trackers, µTP, and Kad. An HTTP
 proxy on the P2P profile is used only for TCP P2P connections; it cannot carry
-UDP. Changing the P2P profile at runtime reloads the BitTorrent session and
-restarts affected P2P downloads.
+UDP. Saving a changed P2P profile in Preferences reloads the BitTorrent session
+and restarts affected P2P downloads.
+
+Through a P2P proxy each tracker gets a single announce. Without one, Risuko
+announces separately over IPv4 and IPv6 (BEP 7) and merges the peer lists.
 
 <Callout type="warn">
-An HTTP-only P2P proxy does not anonymize BitTorrent UDP. DHT, UDP trackers,
-and µTP stay direct unless a SOCKS5/SOCKS5H UDP route is configured.
+An HTTP-only P2P proxy cannot carry BitTorrent UDP, and Risuko fails closed
+rather than sending it direct: DHT, UDP tracker announces, and µTP to
+destinations outside the UDP bypass list are blocked until a SOCKS5/SOCKS5H
+UDP route is configured.
 </Callout>
 
 ## Proxy URL
@@ -115,9 +123,10 @@ Every host, literal, or CIDR rule may include a port. For IPv6, bracket a
 literal before its port (`[2001:db8::5]:8443`) and put a CIDR prefix after the
 closing bracket (`[fd00::]/8:8443`).
 
-`localhost`, subdomains of `localhost`, and IPv4/IPv6 loopback literals are
-always contacted directly, even when the bypass field is empty. Invalid
-entries, such as `example.com:nope` or an out-of-range CIDR prefix, are
+Loopback is not bypassed implicitly: `localhost`, its subdomains, and
+IPv4/IPv6 loopback literals go through the proxy unless they are listed. Add
+`localhost,127.0.0.0/8,::1` to **Bypass** to reach local services directly.
+Invalid entries, such as `example.com:nope` or an out-of-range CIDR prefix, are
 ignored. CIDR entries match a destination written as an IP literal; Risuko
 does not resolve a hostname before comparing it to a CIDR rule.
 
@@ -130,8 +139,9 @@ host.
 ## Per-Task Overrides
 
 The **Add Task** dialog has a task-level Proxy field. It overrides the global
-HTTP download proxy (`all-proxy`) for that task. The CLI and JSON-RPC clients
-can set the same option in task options:
+HTTP download proxy (`all-proxy`) for that task. When the task sets no `p2p-*`
+keys, its `all-proxy` / `no-proxy` also become the task's P2P TCP and UDP
+route. The CLI and JSON-RPC clients can set the same option in task options:
 
 ```bash
 risuko download https://example.com/file.zip \
@@ -149,8 +159,10 @@ risuko download https://example.com/file.zip \
 
 BitTorrent, eD2K, and other P2P tasks can override the P2P route with
 `p2p-proxy` / `p2p-no-proxy` (and optionally `p2p-udp-proxy` /
-`p2p-udp-no-proxy`). Setting any of those keys on a task treats the P2P route
-as a task override and does not fall back to the global P2P profile.
+`p2p-udp-no-proxy`). Setting any of those keys on a task replaces the global
+P2P proxy server for that task; a bypass key the task leaves unset is
+inherited from the global profile. Without a task-level UDP key, the task's
+TCP P2P route is reused for UDP.
 
 Task-level HTTP values are validated by the native HTTP client. The global
 `no-proxy` list is used for global HTTP proxy decisions; yt-dlp's own

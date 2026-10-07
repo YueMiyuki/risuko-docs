@@ -14,14 +14,16 @@ stores the Unix timestamp in the task option `risuko-start-at`, creates the
 task with status `scheduled`, and keeps it out of the active worker queue until
 the time arrives.
 
-- Torrent tasks are not schedulable. If a mixed batch contains torrents, the
-  scheduled time applies only to non-torrent items.
-- Existing non-torrent tasks can be scheduled or rescheduled from the task
-  action menu. Scheduled tasks show in the **Scheduled** list.
+- Torrent and magnet tasks are not schedulable. If a mixed batch contains
+  torrents or magnet links, the scheduled time applies only to the other items.
+- Waiting or paused non-torrent tasks can be scheduled from the task action
+  menu, and scheduled tasks can be rescheduled. Scheduled tasks show in the
+  **Scheduled** list.
 - **Start Now** clears `startAt` and moves the task back to `waiting`.
-- If Risuko notices a due task within 5 minutes, it starts it. If the app was
-  not running long enough to miss that grace window, the task stays scheduled
-  with `scheduleMissed: true` and the app shows a missed-schedule dialog.
+- If Risuko notices a due task within 5 minutes of its start time, it starts
+  it. If the task is more than 5 minutes overdue when Risuko checks (for
+  example, because the app was not running), it stays scheduled with
+  `scheduleMissed: true` and the app shows a missed-schedule dialog.
 
 Programmatic access is Tauri-only:
 
@@ -110,7 +112,7 @@ and is excluded from cloud sync.
 ## Editing a Task
 
 The task action menu includes **Edit…** for active, waiting, paused, scheduled,
-and errored tasks. Finished tasks cannot be edited.
+seeding, and errored tasks. Finished tasks cannot be edited.
 
 - Non-torrent tasks can change the filename, save directory, connection count,
   per-task speed limit, URIs/mirrors, and HTTP network fields (proxy, user

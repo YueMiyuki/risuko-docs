@@ -7,7 +7,7 @@ description: Add, control, and query downloads with the Node.js API.
 
 All `add*` functions return a GID (Global ID) string that identifies the download task.
 
-`addUri`, `addTorrent`, and `addEd2k` have corresponding JSON-RPC methods. `addMagnet`, `addM3u8`, and `addFtp` are available only through the Node.js bindings — they call the engine manager directly (not via RPC).
+`addUri`, `addTorrent`, and `addEd2k` have corresponding JSON-RPC methods. `addMagnet`, `addM3u8`, and `addFtp` are available only through the Node.js bindings — they call the engine manager directly (not via RPC). The reverse also applies: `addMedia`, `addMetalink`, `addNzb`, `changePosition`, `getServers`, `forcePause`/`forcePauseAll`, `forceRemove`, the routing-rule methods, and `setBtPeerBlocklist` exist only over [JSON-RPC](/docs/architecture/rpc).
 
 ### addUri
 
@@ -112,7 +112,10 @@ Options are passed as a flat object. String values follow the aria2 convention; 
 | `p2p-proxy` | P2P TCP proxy URL (BitTorrent / eD2K / Gnutella) | `"socks5h://127.0.0.1:1080"` |
 | `referer` | HTTP referer | `"https://example.com"` |
 | `seed-ratio` | BT seed ratio | `"1.0"` |
-| `seed-time` | BT seed time (minutes) | `"60"` |
+| `seed-time` | BT seed time in minutes (number or numeric string) | `60` |
+| `keep-seeding` | BT: seed until stopped manually (boolean, or `"true"` / `"false"`) | `true` |
+| `select-file` | BT: files to download, as 1-based indices with aria2-style ranges (padding files are not counted). Also changeable at runtime; see [File selection](/docs/guides/torrent#file-selection) | `"1-3,7"` |
+| `pause` | Add a non-torrent task paused | `true` |
 | `max-download-limit` | Speed limit in bytes/s; `K` and `M` suffixes allowed, `0` = unlimited | `"1M"` |
 
 ## Controlling Downloads
@@ -127,7 +130,7 @@ function pause(gid: string): Promise<void>;
 
 ### unpause
 
-Resume a paused download.
+Resume a paused download, or retry an errored one.
 
 ```ts
 function unpause(gid: string): Promise<void>;
@@ -153,7 +156,9 @@ function unpauseAll(): Promise<void>;
 ### Example
 
 ```js
-import { addUri, pause, unpause, remove } from "@risuko/risuko-js";
+import risuko from "@risuko/risuko-js";
+
+const { addUri, pause, unpause, remove } = risuko;
 
 const gid = await addUri(["https://example.com/file.zip"]);
 
@@ -199,13 +204,23 @@ console.log(outcome.restarted, outcome.progressPreserved);
 - At least one of `uris`, `dir`, `out`, `trackers`, or `options` must be set.
 - Finished tasks (complete / removed) cannot be edited; errored tasks can.
 - HTTP, media, m3u8, FTP, and similar tasks accept URI, directory, and filename
-  changes. Thunder links in `uris` are decoded to HTTP. Changing the primary
-  URI, `dir`, or `out` on an active task stops the worker, relocates any
-  `.part` file when possible, and starts it again.
+  changes. Thunder links in `uris` are decoded to HTTP. On an active task, any
+  change to the URI list, `dir`, or `out` stops the worker, relocates any
+  `.part` file when possible, and starts it again. Changing one of these
+  options does the same: `split`, `max-download-limit`, `header`,
+  `all-proxy`, `proxy`, `no-proxy`, `user-agent`, `referer`, `cookie`,
+  `max-connection-per-server`, `min-split-size`, `checksum`, `ftp-user`,
+  `ftp-passwd`, `sftp-private-key`, `sftp-private-key-passphrase`.
 - Torrent tasks reject URI, `dir`, and `out` changes. `trackers` appends extra
-  announce URLs (comma or newline separated) and is persisted on `bt-tracker`.
-- Startup-only option keys (`rpc-*`, `pbh-*`, listen ports, most `bt-*`) are
-  rejected on the patch. The desktop **Edit…** dialog uses this API.
+  announce URLs (comma or newline separated) and is persisted on `bt-tracker`;
+  it is rejected on non-torrent tasks.
+- Startup-only option keys are rejected on the patch: `rpc-listen-port`,
+  `rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`,
+  `listen-port`, `dht-listen-port`, `ed2k-port`, `ed2k-enable-kad`,
+  `ed2k-kad-port`, `bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
+  `bt-upload-rate-limit`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
+  `bt-encryption-policy`, and `bt-listen-v6`. The desktop **Edit…** dialog
+  uses this API.
 
 ## Queries
 
@@ -239,16 +254,18 @@ const partial = await tellStatus(gid, ["status", "completedLength"]);
 | `completedLength` | `string` | Downloaded bytes |
 | `downloadSpeed` | `string` | Current download speed (bytes/s) |
 | `uploadSpeed` | `string` | Current upload speed (bytes/s) |
+| `uploadLength` | `string` | Uploaded bytes |
 | `files` | `object[]` | Array of file information |
 | `connections` | `string` | Number of connections |
 | `dir` | `string` | Download directory |
+| `tag` | `string` | Routing tag (rule label or category), present when a routing rule matched |
 | `createdAt` | `string` | Creation time (ms since epoch) |
 | `startAt` | `string` | Scheduled start time in Unix seconds, present only for scheduled tasks |
 | `scheduleMissed` | `boolean` | Present and `true` when a scheduled task missed its 5-minute grace window |
 | `errorCode` | `string` | Error code (if status is `"error"`) |
 | `errorMessage` | `string` | Error description |
 
-BitTorrent tasks include additional fields such as `infoHash`, `bittorrent` (the torrent name is nested at `bittorrent.info.name`, alongside `comment` and `announceList`), `seeder`, and `numSeeders`. Multi-connection HTTP downloads include `chunkProgress`, an array of `{ completedLength, totalLength }` per chunk.
+BitTorrent tasks include additional fields such as `infoHash`, `infoHashV2` (v2 and hybrid torrents), `metaVersion`, `bittorrent` (the torrent name is nested at `bittorrent.info.name`, alongside `comment` and `announceList`), `seeder`, `numSeeders`, `pieceLength`, and `numPieces`. ED2K tasks include `ed2kLink`, `numPeers`, and `ed2kKad`; M3U8 tasks include `m3u8Link`; Usenet tasks include `usenet`, `usenetStage`, `usenetWarning`, and `usenetRepairFailure`. Multi-connection HTTP downloads include `chunkProgress`, an array of `{ completedLength, totalLength }` per chunk.
 
 ### tellActive
 
