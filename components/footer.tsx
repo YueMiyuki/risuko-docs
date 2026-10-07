@@ -41,34 +41,36 @@ const links: Record<
   ],
 };
 
-export function Footer() {
+export function Footer({ cta = true }: { cta?: boolean }) {
   return (
     <footer className="border-t border-border/30">
       {/* CTA */}
-      <div className="mx-auto max-w-3xl px-4 py-20 text-center">
-        <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-          Ready to download faster?
-        </h2>
-        <p className="mx-auto mt-3 max-w-md text-pretty text-muted-foreground">
-          Free and open source. Available for Windows, macOS, Linux, and
-          Android.
-        </p>
-        <div className="mx-auto mt-8 max-w-md">
-          <CopyCommand command="pnpm install -g @risuko/app" />
+      {cta ? (
+        <div className="mx-auto max-w-3xl px-4 py-20 text-center">
+          <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            Ready to download faster?
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-pretty text-muted-foreground">
+            Free and open source. Available for Windows, macOS, Linux, and
+            Android.
+          </p>
+          <div className="mx-auto mt-8 max-w-md">
+            <CopyCommand command="pnpm install -g @risuko/app" />
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            or{" "}
+            <a
+              href="https://github.com/YueMiyuki/Risuko/releases"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-0.5 font-medium text-primary hover:underline"
+            >
+              download from GitHub
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+          </p>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          or{" "}
-          <a
-            href="https://github.com/YueMiyuki/Risuko/releases"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-0.5 font-medium text-primary hover:underline"
-          >
-            download from GitHub
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </a>
-        </p>
-      </div>
+      ) : null}
 
       {/* Links */}
       <div className="border-t border-border/30">

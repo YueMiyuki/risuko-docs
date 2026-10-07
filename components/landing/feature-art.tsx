@@ -12,7 +12,7 @@ function ArtFrame({
     <span
       aria-hidden
       className={cn(
-        "feature-art relative mb-5 block h-28 overflow-hidden rounded-md bg-background/40",
+        "feature-art relative mb-6 block h-32 overflow-hidden rounded-2xl bg-background/60",
         className,
       )}
     >
@@ -21,7 +21,6 @@ function ArtFrame({
   );
 }
 
-/* RSS: new feed items keep sliding in from the top ------------------ */
 export function RssArt() {
   return (
     <ArtFrame>
