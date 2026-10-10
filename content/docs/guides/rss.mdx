@@ -90,7 +90,7 @@ Each rule supports the following knobs (`RssRule` in
 | `filename_template` | Stored with the rule but not applied yet; downloads keep their own names |
 | `schedule`, `cooldown_secs` | Time-of-day / weekday window, and minimum time since the same episode was last downloaded before the rule fires again |
 
-Size bounds apply only when the feed reports an enclosure length, and
+Feed bodies are capped at 8 MiB. Size bounds apply only when the feed reports an enclosure length, and
 `min_seeders` only when the title carries a seeder count (e.g. `[123S/45L]`).
 
 Title metadata (series, season, episode, quality, codec, group) is extracted

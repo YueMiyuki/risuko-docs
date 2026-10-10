@@ -19,7 +19,7 @@ Tauri command — see [Programmatic Access](#programmatic-access) below.
 | Category | What it checks |
 |----------|----------------|
 | `general` | Engine running state, uptime, app version, RPC endpoint, empty-secret warning when the RPC host is not loopback |
-| `network` | BT and DHT listen-port configuration, ED2K Kad UDP binding and bootstrap state, IPv6 listener flag, HTTP, P2P, and P2P UDP proxy profiles (URL validity, reachability as a slow probe) |
+| `network` | BT and DHT listen-port configuration (only that a valid port is set; the BT port is bound at startup, falling back to a random port if taken, and `dht-listen-port` is not bound), ED2K Kad UDP binding and bootstrap state, IPv6 listener flag, HTTP, P2P, and P2P UDP proxy profiles (URL validity, reachability as a slow probe) |
 | `bittorrent` | Encryption policy, UPnP mappings, LSD listener, BT session port and torrent count, DHT routing-table size, peer tuning limits, tracker reachability (slow probe) |
 | `disk` | Download directory writability, free space, file allocation strategy, recent save paths (failures demoted to warnings) |
 | `system` | Auto-launch state, "prevent sleep while downloading" toggle, OS-level sleep inhibitor activity |

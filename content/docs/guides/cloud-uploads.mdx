@@ -19,7 +19,7 @@ The CLI and Node.js API do not yet expose sink management.
 |----------|-------|
 | **WebDAV** | Single `PUT` per file with optional Basic auth. Supports skipping TLS verification for self-signed homelab servers. Issues `MKCOL` for missing parent directories. |
 | **S3 (and compatible)** | SigV4 with `UNSIGNED-PAYLOAD`. Files up to 5 GiB use a single `PUT`; larger files are sent through a 3-step multipart pipeline (Initiate → `UploadPart` × N → Complete) with a 64 MiB default part size and a best-effort `DELETE` to abort orphaned uploads on failure. Tested against AWS S3, MinIO, Backblaze B2 (S3 API), Cloudflare R2, Wasabi, and Garage. Supports both virtual-hosted and path-style addressing. |
-| **SFTP** | SSH File Transfer Protocol via `russh` + `russh-sftp`. Authenticates with a password or a PEM-encoded private key (OpenSSH or PKCS#1). Server host keys are pinned on first use (TOFU) and stored in `<OS config dir>/risuko/sftp_known_hosts.json`; subsequent mismatches are refused. |
+| **SFTP** | SSH File Transfer Protocol via `russh` + `russh-sftp`. Authenticates with the private key first, falling back to the password (PEM-encoded OpenSSH or PKCS#1; RSA keys sign with `rsa-sha2`). Server host keys are pinned on first use (TOFU) and stored in `<OS config dir>/risuko/sftp_known_hosts.json`; subsequent mismatches are refused. |
 | **FTP / FTPS** | Plain FTP or implicit-TLS FTPS via `suppaftp`. Anonymous mode is automatic when no username is supplied. Optional `insecure` flag skips TLS certificate verification. |
 
 ## Sink Configuration

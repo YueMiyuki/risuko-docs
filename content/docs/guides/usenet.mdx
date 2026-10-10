@@ -23,6 +23,11 @@ The normal queue, task priority, pause, resume, cancel, bandwidth, and
 concurrency controls apply to Usenet tasks too.
 </Callout>
 
+PAR2 recovery volumes (`.volNN+MM.par2`) are not downloaded up front. Risuko
+fetches the data files and the index `.par2` first, and fetches recovery
+volumes only when verification finds damage, and only as many as the repair
+needs. Volumes count toward the task size once they are requested.
+
 Article downloads follow the HTTP proxy profile (`all-proxy`) when the
 **Download** scope is enabled. See the [Proxy Support guide](/docs/guides/proxy).
 
@@ -65,7 +70,7 @@ endpoint and these non-secret fields:
 | Authentication | Username and password, or anonymous access |
 | Enabled | Disabled profiles stay in settings but are not used |
 | Priority | Lower numbers are tried first; equal priorities share work |
-| Maximum connections | Per-profile connection cap, from 1 to 128 in the app |
+| Maximum connections | Per-profile connection cap, from 1 to 128 in the app. Articles are fetched over several connections to the provider in parallel, up to this cap, and each connection pipelines up to 3 article requests. A missing article fails only that article |
 
 Risuko validates TLS certificates and hostnames with the normal system trust
 roots. STARTTLS begins as a plain NNTP connection, issues `STARTTLS`, and then

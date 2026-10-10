@@ -95,7 +95,9 @@ Defaults come from `src-tauri/risuko-engine/src/config/defaults.rs` and are stor
 |-----|---------|-------------|
 | `dir` | OS Downloads dir | Default download directory |
 | `max-concurrent-downloads` | `5` | Maximum active non-torrent download workers. Queue reconciliation can preempt lower-priority non-torrent workers back to `waiting`; BitTorrent tasks are managed separately |
-| `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, `0` = unlimited; updates the `SpeedLimiter` immediately) |
+| `max-overall-download-limit` | `0` | One overall download budget (bytes/s, `0` = unlimited) shared by HTTP/FTP/SFTP/HLS, BitTorrent, ED2K, and Usenet; running downloads are retuned immediately |
+| `max-overall-upload-limit` | `0` | Overall upload cap (bytes/s, `0` = unlimited), enforced for BitTorrent uploads and applied immediately |
+| `bt-upload-rate-limit` | `0` | BitTorrent upload cap (bytes/s, accepts `512K`-style values, applied immediately). The effective cap is the smaller non-zero of this and `max-overall-upload-limit` |
 | `split` | `16` | Default number of HTTP connections for new downloads and M3U8 segment workers |
 | `seed-ratio` | `0` | Stop seeding once the upload/download ratio reaches this value (`0` = no ratio goal; checked every second) |
 | `seed-time` | `0` | Stop seeding after this many minutes (`0` = no time goal). With both `seed-ratio` and `seed-time` at `0` and `keep-seeding` off, torrents complete without seeding |
@@ -109,7 +111,7 @@ Defaults come from `src-tauri/risuko-engine/src/config/defaults.rs` and are stor
 | `doh-enable` | `false` | Resolve DNS over HTTPS (only active when `doh-url` is set). Hot-reloaded when any `doh-*` key changes |
 | `doh-url` | `""` | DoH endpoint URL; must be `https://` |
 | `doh-bootstrap` | `""` | Comma/space/newline-separated IPs for reaching the endpoint host without system DNS |
-| `doh-fallback` | `true` | Fall back to the system resolver when a DoH query fails |
+| `doh-fallback` | `true` | Fall back to the system resolver when a DoH query fails (timeout, network error, SERVFAIL); an NXDOMAIN or NODATA answer does not fall back |
 | `nzb-body-timeout` | `30` | Maximum idle time in seconds between chunks while fetching an NZB URL body |
 | `rpc-listen-port` | `16800` | RPC server port (read at `startEngine` only) |
 

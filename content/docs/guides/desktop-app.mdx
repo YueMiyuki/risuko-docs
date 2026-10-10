@@ -105,6 +105,9 @@ Tagged release builds can ship Tauri updater artifacts. The app checks
 release workflow assembles the signed `latest.json` manifest from per-platform
 fragments.
 
+Before relaunching to install an update, the app stops the engine and saves
+the session.
+
 `auto-check-update` defaults to `false` on every platform. The first-launch
 legal gate is recorded with `legal-accepted`; this flag is local to the device
 and is excluded from cloud sync.

@@ -172,7 +172,8 @@ const { startEngine, changeGlobalOption } = risuko;
 
 await startEngine();
 
-// Limit total bandwidth to 50 MB/s
+// Limit total bandwidth to 50 MB/s (shared by HTTP, BitTorrent, ED2K, and
+// Usenet; running downloads are retuned immediately)
 await changeGlobalOption({
   "max-overall-download-limit": String(50 * 1024 * 1024),
 });

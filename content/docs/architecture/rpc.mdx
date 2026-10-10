@@ -11,7 +11,7 @@ The RPC server listens on `http://127.0.0.1:16800/jsonrpc` by default. Host, por
 
 Besides `POST`, the same endpoint accepts `GET /jsonrpc?method=<name>&id=<id>&params=<base64(JSON array)>`. An optional `jsoncallback` query parameter wraps the response in JSONP. A `GET` with an `Upgrade: websocket` header opens a WebSocket instead (see below).
 
-To block DNS rebinding, requests whose `Host` header names a DNS host other than `localhost` or the configured `rpc-host` are rejected with `403 Forbidden`. IP literals are always accepted.
+To block DNS rebinding, requests whose `Host` header names a DNS host other than `localhost` or the configured `rpc-host` are rejected with `403 Forbidden`. IP literals are always accepted. Request bodies are limited to 32 MiB.
 
 ## Request Format
 
@@ -110,7 +110,10 @@ app's Provider Profiles editor instead.
 `risuko.tellWaiting` returns waiting and paused tasks. Scheduled tasks are a
 desktop/Tauri list (`tell_scheduled`), not a JSON-RPC method. `risuko.getGlobalStat`
 does count scheduled tasks in `numWaiting`, matching aria2's broad
-"not active yet" bucket.
+"not active yet" bucket. Besides the aria2 fields it also returns
+`numCompleted`, `numStoppedError` (stopped minus completed),
+`numScheduled`, and `numPaused`. Paused and scheduled tasks are also counted in
+`numWaiting`.
 
 `risuko.setBtPeerBlocklist` full-replaces the process-wide BitTorrent IP/CIDR
 blocklist. Each string is a plain IP (`1.2.3.4`, `2001:db8::1`) or CIDR
@@ -240,7 +243,16 @@ When `rpc-secret` is set, every call must prefix its `params` array with `"token
 }
 ```
 
-The token is stripped from `params` before dispatch. When `rpc-secret` is empty, the `token:` prefix is still accepted (and stripped) for compatibility with aria2 clients that always send one.
+The token is stripped from `params` before dispatch.
+
+On first run the engine generates a random 256-bit (64 hex character) `rpc-secret` and saves it in `system.json` together with an `rpc-secret-initialized` marker. A secret you later clear on purpose stays cleared. Installs that upgrade with an empty secret get one generated too, so third-party aria2 clients (AriaNg and similar) need the token from `system.json` or the app's settings page.
+
+When `rpc-secret` is empty, the `token:` prefix is still accepted (and stripped) for compatibility with aria2 clients that always send one, but the server also:
+
+- rejects requests from web-page origins (`http`/`https` origins that are not loopback or `tauri.localhost`, `null`, and `file`) and cross-site fetches with `403 Forbidden`
+- rejects state-changing methods sent via `GET` (read-only methods such as `tellStatus` still work, and `jsoncallback` is ignored)
+
+With a secret set, none of these restrictions apply.
 
 ## `system.multicall`
 

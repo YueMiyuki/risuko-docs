@@ -25,20 +25,19 @@ The consumer is `ConfigManager::new(&dyn ConfigDirProvider)`. `ConfigManager::wi
 
 ### Default directory (CLI, NAPI)
 
-The CLI and Node.js bindings do not implement the trait. Each resolves the directory with a plain helper (`get_config_dir` in `risuko-cli/src/commands.rs`, `default_config_dir` in `risuko-napi/src/lib.rs`) and loads `system.json` / `user.json` from it directly. In Node.js, `startEngine({ configDir })` overrides the default:
+The CLI and Node.js bindings do not implement the trait. Each resolves the directory with a shared helper (`standalone_config_dir`, called from `get_config_dir` in `risuko-cli/src/commands.rs` and from `risuko-napi/src/lib.rs`) and loads `system.json` / `user.json` from it directly. In Node.js, `startEngine({ configDir })` overrides the default:
 
 ```rust
-fn default_config_dir() -> PathBuf {
-    dirs::config_dir()
-        .map(|d| d.join("dev.risuko.app"))
-        .unwrap_or_else(|| PathBuf::from("."))
+// risuko-engine/src/standalone.rs
+pub fn standalone_config_dir() -> PathBuf {
+    // <OS config dir>/dev.risuko.app when it already exists, else <OS config dir>/app.risuko.Risuko
 }
 ```
 
-Resolves to:
-- **macOS**: `~/Library/Application Support/dev.risuko.app`
-- **Linux**: `~/.config/dev.risuko.app`
-- **Windows**: `C:\Users\<user>\AppData\Roaming\dev.risuko.app`
+Both hosts call `standalone_config_dir` from `risuko-engine`. Headless mode of the app binary uses `gui_config_dir` instead, which prefers `app.risuko.Risuko` and falls back to `dev.risuko.app` only when the former does not exist. On a fresh install this resolves to:
+- **macOS**: `~/Library/Application Support/app.risuko.Risuko`
+- **Linux**: `$XDG_CONFIG_HOME/app.risuko.Risuko` (`~/.config/app.risuko.Risuko` when unset)
+- **Windows**: `C:\Users\<user>\AppData\Roaming\app.risuko.Risuko`
 
 ## EventSink
 

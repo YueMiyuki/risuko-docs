@@ -115,7 +115,7 @@ from another machine, set `rpc-host` in the config on both ends.
 ### With an RPC secret
 
 Set `"rpc-secret": "mysecret"` in `system.json` in the config directory
-(`<OS config dir>/dev.risuko.app`). `risuko config set rpc-secret` writes
+(`<OS config dir>/app.risuko.Risuko`, or the legacy `dev.risuko.app` if it already exists; see [Config Directory Locations](/docs/configuration#config-directory-locations)). `risuko config set rpc-secret` writes
 `user.json`, which the engine does not read for this key, and
 `engine-overrides` ignores `*-secret` keys.
 

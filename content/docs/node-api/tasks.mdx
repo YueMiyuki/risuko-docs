@@ -218,7 +218,8 @@ console.log(outcome.restarted, outcome.progressPreserved);
   `rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`,
   `listen-port`, `dht-listen-port`, `ed2k-port`, `ed2k-enable-kad`,
   `ed2k-kad-port`, `bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
-  `bt-upload-rate-limit`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
+  `bt-ban-corrupt-peers`, `bt-ban-corrupt-strikes`, `bt-enable-upnp`,
+  `bt-upnp-lease`, `bt-enable-lsd`,
   `bt-encryption-policy`, and `bt-listen-v6`. The desktop **Edit…** dialog
   uses this API.
 
@@ -311,8 +312,11 @@ function getGlobalStat(): Promise<Record<string, unknown>>;
 
 ```js
 const stat = await getGlobalStat();
-// { downloadSpeed, uploadSpeed, numActive, numWaiting, numStopped, numStoppedTotal }
-// numWaiting counts waiting, paused, and scheduled downloads; all values are strings
+// { downloadSpeed, uploadSpeed, numActive, numWaiting, numStopped, numStoppedTotal,
+//   numCompleted, numStoppedError, numScheduled, numPaused }
+// numWaiting counts waiting, paused, and scheduled downloads (numPaused and
+// numScheduled count those subsets); numStoppedError is
+// numStopped minus numCompleted; all values are strings
 ```
 
 ### getFiles

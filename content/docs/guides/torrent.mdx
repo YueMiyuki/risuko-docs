@@ -20,12 +20,12 @@ For v2 and hybrid torrents the task exposes an additional `infoHashV2` (SHA-256)
 | 9 | Metadata exchange | `ut_metadata` for magnets; `x.pe` peers are contacted directly |
 | 10 | Extension protocol | Advertises the client as `Risuko <version>` |
 | 11 | Peer exchange | `ut_pex` with encryption, seed, µTP, hole-punch, and reachable flags |
-| 12 | Multitracker | Tiers tried in order, shuffled within a tier; a responding tracker moves to the front |
+| 12 | Multitracker | Private torrents try tiers in order, shuffled within a tier, with a responding tracker moved to the front; public torrents announce to every tracker concurrently |
 | 14 | Local Service Discovery | Announces every info-hash the torrent is known by |
 | 15 | UDP trackers | IPv4 and IPv6 |
 | 19 | WebSeeds | See [WebSeeds](#webseeds) |
 | 20 | Peer ID | `-RS` + one character each for major, minor, and patch version + `0-`, e.g. `-RS0700-` |
-| 21 | Partial seeds | A peer's `upload_only` marks it as a seed in PEX |
+| 21 | Partial seeds | A peer's `upload_only` marks it as a seed in PEX; Risuko advertises `upload_only` once complete |
 | 23 | Compact peer lists | |
 | 27 | Private torrents | See the callout under [WebSeeds](#webseeds) |
 | 29 | µTP | See [Connections and Encryption](#connections-and-encryption) |
@@ -128,7 +128,8 @@ requests. Risuko requests missing pieces with `Range`, checks the returned
 `Content-Range`, and verifies every piece against the torrent metadata before
 writing it to disk. WebSeed transfers run alongside peer transfers, and a
 failed mirror is skipped so another mirror or the peer swarm can continue the
-download.
+download. Mirrors back off on transient errors and are only disabled (or just
+the affected file) on permanent ones.
 
 For a multi-file torrent, each WebSeed URL is a base URL and must end with a
 slash. Risuko appends the torrent name and each file's relative path:
@@ -219,6 +220,10 @@ Per-task `seed-time` and `seed-ratio` accept numbers or numeric strings and
 override the global values for that task, including when changed later with
 `changeOption`.
 
+When a finished torrent reaches its seeding goal, or `keep-seeding` is off, the
+engine stops it instead of leaving it seeding invisibly. After a restart,
+`seed-time` is counted from when seeding resumes.
+
 <Callout type="info">
 Seeding starts whenever `keep-seeding` is true, or `seed-time > 0`, or `seed-ratio > 0`. If `keep-seeding` is off, seeding stops when `seed-time` elapses or `seed-ratio` is reached, whichever comes first.
 </Callout>
@@ -290,6 +295,11 @@ over IPv4 and IPv6 separately and the peer lists are merged (BEP-7). The path
 and query of a `udp://` tracker URL, such as a passkey, are sent with UDP
 announces (BEP-41).
 
+Public torrents announce to every tracker in every tier concurrently, so
+trackers from `bt-tracker`, `tr=`, and `announce-list` are on equal footing.
+Private torrents keep BEP-12 per-tier failover and only use the trackers in
+their metainfo.
+
 Torrents with an `obfuscate-announce-list` (BEP-8) announce to its HTTP(S)
 trackers first, sending `sha_ih` (the SHA-1 of the info-hash) instead of the
 info-hash and the listen port XOR-ed with an RC4 keystream. Peer lists in the
@@ -303,6 +313,38 @@ BitTorrent traffic uses the **P2P proxy** profile, not the HTTP download
 proxy. Configure it in **Preferences -> Advanced -> Proxy**. SOCKS5 or SOCKS5H
 is required for DHT, UDP trackers, and µTP; an HTTP proxy only covers TCP
 peers and HTTP tracker announces. See the [Proxy Support guide](/docs/guides/proxy).
+
+## Speed Limits and Corrupt Peers
+
+`max-overall-download-limit` is one budget shared with every other protocol,
+and `max-overall-upload-limit` caps BitTorrent uploads. The per-task
+`max-download-limit` and `max-upload-limit` apply to a single torrent.
+`bt-upload-rate-limit` is also a BitTorrent upload cap; the smaller non-zero of
+it and `max-overall-upload-limit` applies. All of these, and size suffixes such
+as `512K`, take effect on running torrents through `changeGlobalOption` and
+`changeOption` without a restart.
+
+A peer whose data fails a piece hash check gets a strike only when Risuko is
+certain it was to blame: it was the only contributor to the failed piece, or
+its blocks differ from the later verified copy. At `bt-ban-corrupt-strikes`
+(default `3`) its IP is banned for the rest of the session in every torrent.
+WebSeeds never get strikes. Set `bt-ban-corrupt-peers` to `false` to turn bans
+off. Both keys need an engine restart.
+
+On shutdown every torrent is stopped in parallel (10 s overall bound), so
+trackers receive `stopped`. All torrents share a budget of live peer
+connections plus pending dials (`bt-max-connections`, default 400, range
+20-5000; **Preferences -> Advanced -> BitTorrent -> Max Peer Connections**). It
+applies live without an engine restart, is never above half the open-file
+limit, and lowering it never drops open connections, it only holds back new
+ones. A small reserve is kept for magnet metadata fetches, which wait for a
+slot instead of failing. Running out of file descriptors slows dialling instead
+of counting as a peer failure.
+
+The resume hash check runs in the background, so pause and stop stay
+responsive; nothing unverified is served or announced until it finishes.
+Repeated disk write failures stop the torrent with an error until you resume
+it.
 
 ## Peer blocklist and PeerBanHelper
 

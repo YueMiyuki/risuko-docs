@@ -15,7 +15,7 @@ function startEngine(config?: EngineConfig): Promise<void>;
 
 ```ts
 interface EngineConfig {
-  /** Custom config directory. Default: OS config dir / dev.risuko.app */
+  /** Custom config directory. Default: OS config dir / `app.risuko.Risuko`, or the legacy `dev.risuko.app` if that already exists */
   configDir?: string;
   /** RPC listen port. Default: `rpc-listen-port` from config (16800) */
   rpcPort?: number;
@@ -49,7 +49,7 @@ Only one engine instance can run per process. Calling `startEngine` when the eng
 ### What Happens on Start
 
 1. The config directory is created (if it doesn't exist)
-2. `system.json` and `user.json` are loaded from the config directory; missing files or keys fall back to built-in defaults in memory (the files are not created)
+2. `system.json` and `user.json` are loaded from the config directory; missing files or keys fall back to built-in defaults in memory (the files are not created), except that on first run a random `rpc-secret` is generated and saved to `system.json`
 3. The download directory is created
 4. The task manager is initialized
 5. Session is restored (torrents resume automatically; other previously active downloads are restored as paused)

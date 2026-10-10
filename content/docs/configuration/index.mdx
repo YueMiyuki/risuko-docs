@@ -26,13 +26,19 @@ These `user.json` keys override `system.json` when the engine starts:
 
 | Environment | Path |
 |-------------|------|
-| macOS | `~/Library/Application Support/dev.risuko.app` |
-| Linux | `~/.config/dev.risuko.app` |
-| Windows | `%APPDATA%\dev.risuko.app` |
-| Desktop App | Tauri app config directory for identifier `app.risuko.Risuko` (for example `~/Library/Application Support/app.risuko.Risuko` on macOS) |
-| Node.js API | Same as the CLI, or `EngineConfig.configDir` |
+| macOS | `~/Library/Application Support/<name>` |
+| Linux | `$XDG_CONFIG_HOME/<name>` (`~/.config/<name>` when unset) |
+| Windows | `%APPDATA%\<name>` |
 
-The macOS, Linux, and Windows rows apply to the CLI and Node.js API. The desktop app keeps its own config and session and does not share them with the CLI or Node.js API.
+`<name>` depends on the host:
+
+| Host | Directory name |
+|------|----------------|
+| Desktop app | `app.risuko.Risuko` |
+| Headless mode of the app binary (`risuko serve`, `risuko download` and similar) | `app.risuko.Risuko`, same as the desktop app; falls back to the legacy `dev.risuko.app` only when `app.risuko.Risuko` does not exist and `dev.risuko.app` does |
+| Standalone `risuko` CLI and Node.js API | `app.risuko.Risuko` on a fresh install; an existing legacy `dev.risuko.app` directory wins, so older installs keep their config and session. `EngineConfig.configDir` overrides it in Node.js |
+
+The standalone CLI and Node.js API therefore share the desktop app's directory on fresh installs, but keep using `dev.risuko.app` if it already exists.
 
 ## Reading Configuration
 
@@ -99,7 +105,7 @@ await risuko.changeGlobalOption({
 |-----|---------|-------------|
 | `dir` | OS default | Default download directory |
 | `max-concurrent-downloads` | `5` | Maximum active non-torrent download workers. The desktop app can raise this up to 10; the engine uses the value directly and preempts lower-priority non-torrent tasks back to `waiting` when the queue order requires it |
-| `continue` | `true` | Legacy aria2 key. Accepted but has no effect; interrupted downloads always resume |
+| `continue` | — | Removed. Still accepted but has no effect; interrupted downloads always resume |
 | `pause` | `false` | Per-task: add a non-torrent task in the paused state |
 | `purge-record-on-start` | `false` | When the engine starts, drop completed/stopped task records from the session and clear desktop download-history stats. On-disk files for stopped torrent tasks are preserved (the orphan-purge step is told to keep files for those info-hashes); HTTP/FTP/etc. payloads on disk are never touched |
 
@@ -130,9 +136,10 @@ and are not part of the engine's JSON-RPC surface.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `max-overall-download-limit` | `0` | Global download speed limit (bytes/s, 0 = unlimited) |
-| `max-overall-upload-limit` | `0` | Legacy aria2 key. Accepted and persisted but not currently enforced by the engine; the only working upload cap is BitTorrent seeding via `bt-upload-rate-limit` |
-| `max-download-limit` | `0` | Per-task download speed limit (bytes/s, applies to HTTP, m3u8, and FTP workers) |
+| `max-overall-download-limit` | `0` | One overall download budget (bytes/s, 0 = unlimited) shared by HTTP/FTP/SFTP/HLS, BitTorrent, ED2K, and Usenet. Applied live to running downloads, no restart needed |
+| `max-overall-upload-limit` | `0` | Overall upload cap (bytes/s, 0 = unlimited), enforced for BitTorrent uploads. Combined with `bt-upload-rate-limit`: the smaller non-zero value wins. Applied live |
+| `max-download-limit` | `0` | Per-task download speed limit (bytes/s). Applies to HTTP, m3u8, FTP, torrent, ED2K, and Usenet downloads; retuned live by `changeOption` |
+| `max-upload-limit` | `0` | Per-task upload speed limit (bytes/s) for torrents; retuned live by `changeOption` |
 
 ### HTTP
 
@@ -178,7 +185,7 @@ resolve through the system. SOCKS5h proxies keep resolving names proxy-side.
 | `doh-enable` | `false` | Route DNS lookups over HTTPS. Only takes effect when `doh-url` is also set |
 | `doh-url` | — | DoH endpoint URL. Must be `https://` (e.g. `https://cloudflare-dns.com/dns-query`) |
 | `doh-bootstrap` | — | Comma/space/newline-separated IPs used to reach the endpoint host without a system-DNS lookup. Entries that don't parse as an IP are dropped. When empty, the endpoint host is resolved via the system resolver |
-| `doh-fallback` | `true` | When a DoH query fails (timeout, network error, SERVFAIL), fall back to the system resolver instead of failing the connection |
+| `doh-fallback` | `true` | When a DoH query fails (timeout, network error, SERVFAIL), fall back to the system resolver instead of failing the connection. An NXDOMAIN or NODATA answer is final and does not fall back |
 | `doh-provider` | `cloudflare` | UI-only preference (`user.json`). The desktop app's provider dropdown (`cloudflare`, `google`, `quad9`, `custom`); selecting a preset fills `doh-url` and `doh-bootstrap` automatically. Not read by the engine |
 
 <Callout type="info">
@@ -243,8 +250,11 @@ the swarm spends minutes warming up again. Tasks whose `kind` is not in
 | `bt-tracker` | — | Additional tracker URLs (comma- or newline-separated) |
 | `select-file` | — | Per-task: 1-based indices of the files to download, with aria2-style ranges such as `1-3,7`. Padding files are not counted. Applied live via `changeOption`. See [file selection](/docs/guides/torrent#file-selection) |
 | `bt-max-peers-per-torrent` | `100` | Max concurrent peer connections per torrent (engine restart) |
-| `bt-max-outstanding-per-peer` | `0` | Per-peer pipelined chunk-request cap (engine restart); `0` uses adaptive control starting at 6 and growing up to 96, while an explicit value is capped at 256 |
-| `bt-upload-rate-limit` | `0` | Seeding upload rate cap in bytes/s (0 = unlimited) (engine restart) |
+| `bt-max-outstanding-per-peer` | `0` | Per-peer pipelined chunk-request cap (engine restart); `0` uses adaptive control starting at 6 and growing up to 500, while an explicit value is capped at 500 |
+| `bt-max-connections` | `400` | Total peer connections plus pending dials across all torrents (integer `20`-`5000`; Preferences -> Advanced -> BitTorrent -> **Max Peer Connections**). Applied live, no engine restart. The effective value is capped at half the process file-descriptor soft limit, which the app raises at startup (to 8192 where the OS allows), so `400` is normally effective. Lowering it never drops open connections; it only holds back new ones. A small reserve (8 slots or 2%, at most a quarter of the cap) is kept for magnet metadata fetches, which count against the budget and wait for a slot instead of failing. Synced in the `bittorrent` category |
+| `bt-upload-rate-limit` | `0` | BitTorrent upload rate cap in bytes/s (0 = unlimited); accepts size suffixes such as `512K`. The effective cap is the smaller non-zero of this and `max-overall-upload-limit`. Applied live |
+| `bt-ban-corrupt-peers` | `true` | Ban peers that send data failing piece hash checks (engine restart). `false` disables bans |
+| `bt-ban-corrupt-strikes` | `3` | Failed pieces attributed to one peer before its IP is banned for the rest of the session in every torrent (engine restart; the app UI accepts 1-100). Only used while `bt-ban-corrupt-peers` is on |
 | `bt-enable-upnp` | `true` | Map the listen port on the router via UPnP IGD (engine restart) |
 | `bt-upnp-lease` | `300` | UPnP mapping lease in seconds (engine restart) |
 | `bt-enable-lsd` | `true` | BEP-14 Local Service Discovery via multicast (engine restart) |
@@ -258,12 +268,21 @@ the swarm spends minutes warming up again. Tasks whose `kind` is not in
 | `bt-save-metadata` | `true` | When `true` and a magnet link is added, the engine resolves the torrent metadata first and writes a synthesized `.torrent` file to the task's `dir` before starting the download. Has no effect when adding a `.torrent` file directly |
 
 The DHT (BEP-5) is always enabled and runs as a dual-stack client when an
-IPv6 socket can be bound. The BitTorrent listener uses an ephemeral port; the
-legacy aria2 keys `listen-port`, `dht-listen-port`, `enable-dht`,
-`enable-dht6`, `enable-peer-exchange`, and `bt-enable-lpd` are accepted for
-backwards compatibility but currently have no effect. The same applies to
-`bt-force-encryption`, `bt-exclude-tracker`, `bt-load-saved-metadata`,
-`follow-torrent`, and `allow-overwrite`.
+IPv6 socket can be bound. The BitTorrent TCP listener binds `listen-port`
+(`21301` by default; for a range or list such as `6881-6889` the first port is
+used), falling back to a random port if it cannot be bound. `dht-listen-port`
+is not bound by anything yet (the DHT shares the listener's UDP port); it is
+only validated by the health check. `bt-force-encryption` maps to
+`bt-encryption-policy` `require` when the policy is unset or `prefer`; an
+explicit `plaintext` or `require` policy wins. The legacy aria2 keys
+`enable-dht`, `enable-dht6`, `enable-peer-exchange`, `bt-enable-lpd` (use
+`bt-enable-lsd`), `bt-exclude-tracker`, `follow-torrent`, `allow-overwrite`, and
+`continue` have been removed from the engine defaults because nothing read
+them. They are still accepted if a client or saved config sends them, but have
+no effect, and `continue` and `follow-torrent` are no longer synced.
+`bt-load-saved-metadata` (default
+`true`) makes a magnet reuse the `.torrent` saved by `bt-save-metadata`
+instead of resolving its metadata over the network again.
 
 ### RPC
 
@@ -271,7 +290,7 @@ backwards compatibility but currently have no effect. The same applies to
 |-----|---------|-------------|
 | `rpc-listen-port` | `16800` | RPC server port |
 | `rpc-host` | `127.0.0.1` | RPC bind address (set to `0.0.0.0` for LAN access); a `user.json` key. Also used by the PeerBanHelper listener when that API is enabled |
-| `rpc-secret` | — | RPC authentication token |
+| `rpc-secret` | generated on first run | RPC authentication token. On first run the engine generates a random 256-bit hex secret and saves it in `system.json` with an `rpc-secret-initialized` marker; a secret you later clear on purpose stays cleared. See [RPC authentication](/docs/architecture/rpc#authentication) |
 | `pbh-enable` | `false` | Start a second JSON-RPC listener in Aria2Next compatibility mode so [PeerBanHelper](https://github.com/PBH-BTN/PeerBanHelper) can monitor and ban BitTorrent peers (engine restart) |
 | `pbh-listen-port` | `16801` | PeerBanHelper RPC port (engine restart). In PeerBanHelper, add an Aria2Next downloader pointed at `http://127.0.0.1:<port>/jsonrpc` |
 | `pbh-rpc-secret` | — | Token required as `token:<secret>` on the PeerBanHelper listener (engine restart) |
@@ -287,7 +306,7 @@ backwards compatibility but currently have no effect. The same applies to
 
 See the [RSS Feeds guide](/docs/guides/rss) for the full workflow. RSS subscriptions, items, and rules are persisted via the desktop app's storage. Each feed is polled on its own interval (default 1800 s, minimum 60 s).
 
-The `rss-auto-update` and `rss-update-interval` keys are accepted but not read by anything.
+The old `rss-auto-update` and `rss-update-interval` keys are no longer used or listed by the app.
 
 ### Task Routing
 
@@ -370,13 +389,11 @@ the task or returns it through RPC.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `adc-hub` | — | Accepted but has no effect; ADC / DC transfers are not implemented |
-| `adc-nick` | — | Accepted but has no effect |
-| `gnutella-cache` | — | Accepted but has no effect; Gnutella downloads connect directly to the peer in the URI |
-| `g2-cache` | — | Accepted but has no effect; G2 downloads connect directly to the peer in the URI |
-| `gift-enabled` | `false` | Allow `gift://` URIs to be forwarded to a local `giftd` daemon |
-| `gift-host` | `127.0.0.1` | giFT IPC bind address |
-| `gift-port` | `1213` | giFT IPC port |
+| `gift-enabled` | `false` | Allow `gift://` URIs to be forwarded to a local `giftd` daemon. Shown in Preferences -> Advanced next to the legacy protocol toggles; once enabled and a `giftd` is reachable, `gift://` links work |
+| `gift-host` | `127.0.0.1` | giFT daemon host (also in Preferences -> Advanced) |
+| `gift-port` | `1213` | giFT IPC port (also in Preferences -> Advanced) |
+
+The old `adc-hub`, `adc-nick`, `gnutella-cache`, and `g2-cache` keys are no longer listed by the app and nothing reads them. Gnutella and G2 downloads connect directly to the peer in the URI, and ADC / DC transfers are not implemented.
 
 ### External Engine
 
@@ -410,7 +427,7 @@ until the engine is restarted (Quit & relaunch the desktop app, or restart
 `dht-listen-port`, `ed2k-enable-kad`, `ed2k-kad-port`, `ed2k-port`, `listen-port`, `rpc-host`, `rpc-listen-port`,
 `rpc-secret`, `pbh-enable`, `pbh-listen-port`, `pbh-rpc-secret`,
 `bt-max-peers-per-torrent`, `bt-max-outstanding-per-peer`,
-`bt-upload-rate-limit`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
+`bt-ban-corrupt-peers`, `bt-ban-corrupt-strikes`, `bt-enable-upnp`, `bt-upnp-lease`, `bt-enable-lsd`,
 `bt-encryption-policy`, `bt-listen-v6`.
 
 All other keys are hot-reloaded on the next task or polling cycle.

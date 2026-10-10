@@ -72,7 +72,7 @@ The RPC server binds to `127.0.0.1` by default and only accepts local connection
 risuko config set rpc-host 0.0.0.0
 ```
 
-Once the server is reachable from the network, set an authentication secret. The engine reads `rpc-secret` from `system.json` in the config directory — `risuko config set` writes to `user.json`, which the engine ignores for this key, so edit the file directly:
+Once the server is reachable from the network, make sure an authentication secret is set. On first run the engine generates a random one and saves it in `system.json`; to choose your own, edit that file directly. The engine reads `rpc-secret` from `system.json` in the config directory — `risuko config set` writes to `user.json`, which the engine ignores for this key:
 
 ```json
 { "rpc-secret": "choose-a-secret" }
@@ -118,17 +118,17 @@ VOLUME ["/downloads", "/config"]
 CMD ["risuko", "serve", "--rpc-port", "16800"]
 ```
 
-`XDG_CONFIG_HOME=/config` places the config directory at `/config/dev.risuko.app`. Create two files there before starting the container. `system.json` holds `dir`, which points downloads at the volume, and `rpc-secret`. `user.json` holds `rpc-host`, which must be `0.0.0.0`. `rpc-host` is a user key: without `user.json` its default `127.0.0.1` overrides `system.json`, binding the container's loopback so the published port never reaches the server. Missing keys are filled from defaults.
+`XDG_CONFIG_HOME=/config` places the config directory at `/config/app.risuko.Risuko` on a fresh install (the standalone CLI and the app binary both use it). Only if a legacy `/config/dev.risuko.app` directory already exists, the standalone CLI keeps using that instead (the app binary does so only when `app.risuko.Risuko` is absent). Create two files there before starting the container. `system.json` holds `dir`, which points downloads at the volume, and `rpc-secret`. `user.json` holds `rpc-host`, which must be `0.0.0.0`. `rpc-host` is a user key: without `user.json` its default `127.0.0.1` overrides `system.json`, binding the container's loopback so the published port never reaches the server. Missing keys are filled from defaults.
 
 ```bash
-mkdir -p /path/to/config/dev.risuko.app
-cat > /path/to/config/dev.risuko.app/system.json <<'EOF'
+mkdir -p /path/to/config/app.risuko.Risuko
+cat > /path/to/config/app.risuko.Risuko/system.json <<'EOF'
 {
   "dir": "/downloads",
   "rpc-secret": "choose-a-secret"
 }
 EOF
-cat > /path/to/config/dev.risuko.app/user.json <<'EOF'
+cat > /path/to/config/app.risuko.Risuko/user.json <<'EOF'
 { "rpc-host": "0.0.0.0" }
 EOF
 
@@ -148,5 +148,5 @@ The engine automatically saves session state every 30 seconds and on shutdown. W
 - Configuration persists in the config directory
 
 The default config directory depends on the deployment method:
-- **CLI**: `~/.config/dev.risuko.app` (Linux), `~/Library/Application Support/dev.risuko.app` (macOS)
-- **Node.js API**: configurable via `EngineConfig.configDir`
+- **CLI and app binary**: `~/.config/app.risuko.Risuko` (Linux), `~/Library/Application Support/app.risuko.Risuko` (macOS); an existing legacy `dev.risuko.app` directory is still used (see [Config Directory Locations](/docs/configuration#config-directory-locations))
+- **Node.js API**: same default as the CLI, configurable via `EngineConfig.configDir`
