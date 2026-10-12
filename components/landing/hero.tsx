@@ -47,12 +47,7 @@ export function Hero() {
               Everything you need to download from the internet, in one place.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="https://github.com/YueMiyuki/Risuko/releases"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonPrimary}
-              >
+              <Link href="/download" className={buttonPrimary}>
                 <Download className="h-4 w-4" />
                 Download Risuko
               </Link>

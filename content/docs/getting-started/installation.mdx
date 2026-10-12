@@ -40,7 +40,7 @@ The correct platform package is automatically selected via `optionalDependencies
 
 ### Standalone Binaries
 
-Pre-built binaries are also available on the [GitHub Releases](https://github.com/YueMiyuki/risuko/releases) page. Download the archive for your platform and add it to your `PATH`:
+Pre-built binaries are also available on the [download page](/download) and [GitHub Releases](https://github.com/YueMiyuki/risuko/releases). Download the archive for your platform and add it to your `PATH`:
 
 - `risuko-cli-darwin-arm64.tar.gz`, `risuko-cli-darwin-x64.tar.gz`
 - `risuko-cli-linux-x64.tar.gz`, `risuko-cli-linux-arm64.tar.gz`
@@ -76,7 +76,8 @@ This provides native Node.js bindings with full TypeScript definitions.
 
 ## Desktop App
 
-Download the latest release from [GitHub Releases](https://github.com/YueMiyuki/risuko/releases):
+Download the latest release from the [download page](/download), which serves
+every build from a Cloudflare mirror, or from [GitHub Releases](https://github.com/YueMiyuki/risuko/releases):
 
 - **macOS**: `.dmg` (Intel and Apple Silicon)
 - **macOS (Homebrew)**: `brew install --cask yuemiyuki/risuko/risuko-app`
@@ -112,7 +113,7 @@ Then run:
 risuko-app
 ```
 
-On first run the launcher downloads the desktop app for your platform from GitHub Releases, verifies its SHA-256 checksum, and caches it per version; later runs launch the cached copy. Use `--version <x.y.z>` to fetch a specific release and `--no-cache` to force a re-download. Requires Node.js 22 or later.
+Each launch checks for the latest release. If it is not cached yet, the launcher downloads the desktop app for your platform from the Cloudflare mirror (falling back to GitHub Releases), verifies its release signature, and caches it per version; otherwise it launches the cached copy. When the check fails, for example offline, it launches the newest cached version. Use `--version <x.y.z>` to pin a specific release and `--no-cache` to force a re-download. Requires Node.js 22 or later.
 
 ## Building from Source
 

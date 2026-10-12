@@ -19,8 +19,7 @@ export function baseOptions(): BaseLayoutProps {
       {
         icon: <Download />,
         text: "Download",
-        url: `https://github.com/${gitConfig.user}/${gitConfig.repo}/releases`,
-        external: true,
+        url: "/download",
       },
     ],
   };

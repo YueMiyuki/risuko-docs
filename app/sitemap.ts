@@ -3,7 +3,13 @@ import { source } from "@/lib/source";
 import { siteUrl } from "@/lib/shared";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const staticRoutes = ["/", "/legal/privacy", "/legal/terms", "/status"];
+  const staticRoutes = [
+    "/",
+    "/download",
+    "/legal/privacy",
+    "/legal/terms",
+    "/status",
+  ];
 
   return [
     ...staticRoutes.map((route) => ({

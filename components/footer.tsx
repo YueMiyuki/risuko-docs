@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { CopyCommand } from "@/components/landing/copy-command";
 import { RisukoLogo } from "@/components/risuko-logo";
@@ -9,6 +9,7 @@ const links: Record<
 > = {
   Product: [
     { label: "Features", href: "/#features" },
+    { label: "Download", href: "/download" },
     { label: "CLI", href: "/docs/cli" },
     { label: "Node.js API", href: "/docs/node-api" },
     { label: "API status", href: "/status" },
@@ -59,15 +60,13 @@ export function Footer({ cta = true }: { cta?: boolean }) {
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
             or{" "}
-            <a
-              href="https://github.com/YueMiyuki/Risuko/releases"
-              target="_blank"
-              rel="noreferrer"
+            <Link
+              href="/download"
               className="inline-flex items-center gap-0.5 font-medium text-primary hover:underline"
             >
-              download from GitHub
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
+              download the app
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </p>
         </div>
       ) : null}

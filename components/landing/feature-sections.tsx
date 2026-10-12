@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  ArrowUpRight,
   BookOpen,
   ChartColumnBig,
   Check,
@@ -809,7 +808,7 @@ function FeaturesSection() {
   );
 }
 
-const INSTALLS: {
+export const INSTALLS: {
   manager: string;
   items: { label: string; command: string }[];
 }[] = [
@@ -862,14 +861,12 @@ function InstallSection() {
             ))}
           </div>
           <Link
-            href="https://github.com/YueMiyuki/Risuko/releases"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/download"
             className="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
           >
             <Package className="h-4 w-4" />
-            Or grab a binary from GitHub Releases
-            <ArrowUpRight className="h-3.5 w-3.5" />
+            Or grab a binary from the download page
+            <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
         <div className="relative min-h-[260px] overflow-hidden sm:min-h-[380px] lg:col-span-6 lg:min-h-0">
