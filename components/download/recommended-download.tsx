@@ -2,7 +2,6 @@
 
 import { ArrowDown, Download } from "lucide-react";
 import { useEffect, useState } from "react";
-import { buttonPrimary, buttonSecondary } from "@/components/landing/styles";
 import type { RecommendKey } from "@/lib/release";
 
 export type RecommendOption = {
@@ -74,25 +73,28 @@ export function RecommendedDownload({
 
   if (!option) {
     return (
-      <a href="#platforms" className={buttonPrimary}>
-        <ArrowDown className="h-4 w-4" />
-        Choose your platform
-      </a>
+      <div>
+        <a href="#platforms" className="btn btn-ink">
+          <ArrowDown aria-hidden />
+          Choose your platform
+        </a>
+        <p aria-hidden className="mt-3 min-h-4 text-xs" />
+      </div>
     );
   }
 
   return (
     <div>
       <div className="flex flex-wrap gap-3">
-        <a href={option.url} className={buttonPrimary}>
-          <Download className="h-4 w-4" />
+        <a href={option.url} className="btn btn-ink">
+          <Download aria-hidden />
           Download for {option.platform}
         </a>
-        <a href="#platforms" className={buttonSecondary}>
+        <a href="#platforms" className="btn btn-line">
           Other platforms
         </a>
       </div>
-      <p className="mt-3 pl-1 text-sm text-muted-foreground">
+      <p className="mt-3 min-h-4 font-mono text-xs text-muted-foreground">
         {option.detail}
         {intel ? (
           <>

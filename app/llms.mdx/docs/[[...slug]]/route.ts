@@ -1,5 +1,6 @@
-import { getLLMText, getPageMarkdownUrl, source } from "@/lib/source";
 import { notFound } from "next/navigation";
+import { siteUrl } from "@/lib/shared";
+import { getLLMText, getPageMarkdownUrl, source } from "@/lib/source";
 
 export const revalidate = false;
 
@@ -14,6 +15,8 @@ export async function GET(
   return new Response(await getLLMText(page), {
     headers: {
       "Content-Type": "text/markdown",
+      "X-Robots-Tag": "noindex",
+      Link: `<${new URL(page.url, siteUrl)}>; rel="canonical"`,
     },
   });
 }

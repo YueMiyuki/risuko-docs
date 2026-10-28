@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { cn } from "@/lib/cn";
+import { cx } from "@/lib/cx";
 
 export function Mascot({ className }: { className?: string }) {
   const ref = useRef<SVGSVGElement>(null);
@@ -52,7 +52,7 @@ export function Mascot({ className }: { className?: string }) {
       viewBox="0 0 32 24"
       fill="none"
       aria-hidden
-      className={cn("mascot", className)}
+      className={cx("mascot", className)}
     >
       <defs>
         <linearGradient

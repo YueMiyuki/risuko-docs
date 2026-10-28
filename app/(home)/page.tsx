@@ -1,26 +1,27 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { FeatureSections } from "@/components/landing/feature-sections";
-import { displayFont } from "@/components/landing/fonts";
-import { Hero } from "@/components/landing/hero";
-import { cn } from "@/lib/cn";
-import "./landing.css";
+import { Home } from "@/components/landing/home";
+import { Paper } from "@/components/landing/paper";
+import { homeJsonLd, JsonLd, openGraph } from "@/lib/seo";
+import "./paper.css";
+
+const title = "Risuko — Open-Source Download Manager Built in Rust";
+const description =
+  "Free, open-source download manager built in Rust. HTTP, BitTorrent, Usenet, ED2K, HLS and FTP in one queue, with a desktop app, CLI and Node.js API.";
 
 export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
   alternates: { canonical: "/" },
+  openGraph: openGraph({ url: "/", title, description }),
 };
 
 export default function HomePage() {
   return (
-    <div
-      className={cn(
-        "landing min-h-screen bg-background text-foreground",
-        displayFont.variable,
-      )}
-    >
-      <Hero />
-      <FeatureSections />
-      <Footer cta={false} />
-    </div>
+    <Paper>
+      <JsonLd data={homeJsonLd()} />
+      <Home />
+      <Footer cta={false} wide />
+    </Paper>
   );
 }

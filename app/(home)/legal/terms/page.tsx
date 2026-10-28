@@ -3,7 +3,7 @@ import { LegalDoc } from "@/components/legal-doc";
 import { termsContent } from "../terms.content";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Risuko",
+  title: "Terms of Service",
   description:
     "The terms that govern your use of Risuko, the open-source download manager.",
   alternates: { canonical: "/legal/terms" },

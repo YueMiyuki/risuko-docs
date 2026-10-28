@@ -13,6 +13,7 @@ export function AppWindow({
   className,
   style,
   preload,
+  fetchPriority,
   sizes = "(max-width: 1024px) 100vw, 60vw",
 }: {
   src: string;
@@ -23,6 +24,7 @@ export function AppWindow({
   className?: string;
   style?: CSSProperties;
   preload?: boolean;
+  fetchPriority?: "high" | "low" | "auto";
   sizes?: string;
 }) {
   const ww = width - PAD.l - PAD.r;
@@ -45,6 +47,7 @@ export function AppWindow({
         sizes={sizes}
         quality={90}
         preload={preload}
+        fetchPriority={fetchPriority}
         draggable={false}
         className="absolute max-w-none select-none"
         style={{

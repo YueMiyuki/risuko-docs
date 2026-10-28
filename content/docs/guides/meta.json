@@ -11,6 +11,7 @@
     "task-routing",
     "completion-scripts",
     "cloud-uploads",
+    "share",
     "health-checks",
     "browser-cookies",
     "proxy"

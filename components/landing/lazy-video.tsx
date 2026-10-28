@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/cn";
+import { cx } from "@/lib/cx";
 
 export function LazyVideo({
   src,
@@ -23,9 +23,20 @@ export function LazyVideo({
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
+
+    const near = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        video.poster = poster;
+        near.disconnect();
+      },
+      { rootMargin: "100% 0px" },
+    );
+    near.observe(video);
+
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       video.controls = true;
-      return;
+      return () => near.disconnect();
     }
 
     const io = new IntersectionObserver(
@@ -41,16 +52,18 @@ export function LazyVideo({
       { threshold: 0.25 },
     );
     io.observe(video);
-    return () => io.disconnect();
-  }, []);
+    return () => {
+      near.disconnect();
+      io.disconnect();
+    };
+  }, [poster]);
 
   return (
     <video
       ref={ref}
-      className={cn("block h-auto w-full", className)}
+      className={cx("block h-auto w-full", className)}
       width={width}
       height={height}
-      poster={poster}
       muted
       loop
       playsInline

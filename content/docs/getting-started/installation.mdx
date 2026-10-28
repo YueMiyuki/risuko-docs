@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install Risuko CLI or Node.js bindings on your platform.
+description: "Install the Risuko desktop app, CLI or Node.js bindings on macOS, Windows, Linux and Android via Homebrew, npm, APT/DNF or standalone binaries."
 ---
 
 Risuko distributes platform-specific binaries via npm. No Rust toolchain or native compilation is needed at install time.
@@ -24,6 +24,8 @@ This installs the `risuko` binary. Verify it works:
 ```bash
 risuko --version
 ```
+
+On Debian, Ubuntu and Fedora you can also install the `risuko-cli` package from the [APT and DNF repositories](#linux-apt-and-dnf). There the command is `risuko-cli`, because `risuko` belongs to the desktop app.
 
 ### Supported Platforms
 
@@ -81,7 +83,7 @@ every build from a Cloudflare mirror, or from [GitHub Releases](https://github.c
 
 - **macOS**: `.dmg` (Intel and Apple Silicon)
 - **macOS (Homebrew)**: `brew install --cask yuemiyuki/risuko/risuko-app`
-- **Linux**: `.deb`, `.rpm`, or `.AppImage`
+- **Linux**: `.AppImage`, or the [APT and DNF repositories](#linux-apt-and-dnf) on Debian, Ubuntu and Fedora
 - **Windows** (x64 and x86): `.setup.exe` (NSIS installer, per-user) or `.portable.exe` (no install)
 - **Android**: `.apk` (per-ABI builds)
 
@@ -90,6 +92,28 @@ Risuko update endpoint for the current target/architecture/version and verifies
 the signed updater payload before installing it. Automatic update checks are
 disabled by default on every platform; enable `auto-check-update` from
 Preferences or `user.json` to opt in.
+
+### Linux: APT and DNF
+
+Debian and Ubuntu:
+
+```bash
+sudo curl -fsSLo /usr/share/keyrings/risuko.gpg https://dl.risuko.app/apt/risuko.gpg
+echo "deb [signed-by=/usr/share/keyrings/risuko.gpg] https://dl.risuko.app/apt stable main" | sudo tee /etc/apt/sources.list.d/risuko.list
+sudo apt update
+sudo apt install risuko        # desktop app
+sudo apt install risuko-cli    # CLI, runs as risuko-cli
+```
+
+Fedora and RHEL:
+
+```bash
+sudo curl -fsSLo /etc/yum.repos.d/risuko.repo https://dl.risuko.app/rpm/risuko.repo
+sudo dnf install risuko        # desktop app
+sudo dnf install risuko-cli    # CLI, runs as risuko-cli
+```
+
+These installs update through `apt` or `dnf`, so the in-app updater is turned off for them. Older versions stay in the repositories, so you can roll back with `sudo apt install risuko=<version>` or `sudo dnf downgrade risuko`.
 
 ### Linux: WebKitGTK rendering
 

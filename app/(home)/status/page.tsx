@@ -24,9 +24,10 @@ type EndpointCheck = {
 const apiUrl = "https://api.risuko.app/";
 
 export const metadata: Metadata = {
-  title: "Risuko API Status",
+  title: "API Status",
   description: "Current availability for the Risuko API.",
   alternates: { canonical: "/status" },
+  robots: { index: false, follow: true },
 };
 
 async function checkApiStatus(): Promise<EndpointCheck> {

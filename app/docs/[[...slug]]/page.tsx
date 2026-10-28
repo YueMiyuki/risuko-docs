@@ -1,4 +1,3 @@
-import { getPageImage, getPageMarkdownUrl, source } from "@/lib/source";
 import {
   DocsBody,
   DocsDescription,
@@ -7,11 +6,13 @@ import {
   MarkdownCopyButton,
   ViewOptionsPopover,
 } from "fumadocs-ui/layouts/docs/page";
+import { createRelativeLink } from "fumadocs-ui/mdx";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getMDXComponents } from "@/components/mdx";
-import type { Metadata } from "next";
-import { createRelativeLink } from "fumadocs-ui/mdx";
-import { docsSourceConfig } from "@/lib/shared";
+import { docsJsonLd, JsonLd, openGraph } from "@/lib/seo";
+import { appName, docsRoute, docsSourceConfig } from "@/lib/shared";
+import { getPageImage, getPageMarkdownUrl, source } from "@/lib/source";
 
 export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
   const params = await props.params;
@@ -23,6 +24,16 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
+      <JsonLd
+        data={docsJsonLd({
+          url: page.url,
+          title: page.data.title,
+          description: page.data.description,
+          image: getPageImage(page).url,
+          dateModified: page.data.lastModified,
+          crumbs: crumbsFor(page.slugs),
+        })}
+      />
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">
         {page.data.description}
@@ -62,9 +73,27 @@ export async function generateMetadata(
     description: page.data.description,
     alternates: {
       canonical: page.url,
+      types: { "text/markdown": getPageMarkdownUrl(page).url },
     },
-    openGraph: {
+    openGraph: openGraph({
+      type: "article",
+      url: page.url,
       images: getPageImage(page).url,
-    },
+      ...(page.data.lastModified
+        ? { modifiedTime: page.data.lastModified.toISOString() }
+        : {}),
+    }),
   };
+}
+
+function crumbsFor(slugs: string[]) {
+  const trail = slugs.flatMap((_, i) => {
+    const page = source.getPage(slugs.slice(0, i + 1));
+    return page ? [{ name: page.data.title, url: page.url }] : [];
+  });
+  return [
+    { name: appName, url: "/" },
+    { name: "Docs", url: docsRoute },
+    ...trail,
+  ];
 }

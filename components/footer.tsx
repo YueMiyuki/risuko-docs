@@ -18,6 +18,7 @@ const links: Record<
     { label: "Documentation", href: "/docs" },
     { label: "Getting Started", href: "/docs/getting-started/installation" },
     { label: "Configuration", href: "/docs/configuration" },
+    { label: "llms.txt", href: "/llms.txt", external: true },
   ],
   Community: [
     {
@@ -42,7 +43,16 @@ const links: Record<
   ],
 };
 
-export function Footer({ cta = true }: { cta?: boolean }) {
+export function Footer({
+  cta = true,
+  wide = false,
+}: {
+  cta?: boolean;
+  wide?: boolean;
+}) {
+  const container = wide
+    ? "max-w-[90rem] px-5 sm:px-8 lg:px-12"
+    : "max-w-5xl px-4";
   return (
     <footer className="border-t border-border/30">
       {/* CTA */}
@@ -56,7 +66,7 @@ export function Footer({ cta = true }: { cta?: boolean }) {
             Android.
           </p>
           <div className="mx-auto mt-8 max-w-md">
-            <CopyCommand command="pnpm install -g @risuko/app" />
+            <CopyCommand command="npm install -g @risuko/app" />
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
             or{" "}
@@ -73,7 +83,7 @@ export function Footer({ cta = true }: { cta?: boolean }) {
 
       {/* Links */}
       <div className="border-t border-border/30">
-        <div className="mx-auto max-w-5xl px-4 py-12">
+        <div className={`mx-auto ${container} py-12`}>
           <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
             <div className="col-span-2 md:col-span-1">
               <Link href="/" className="mb-3 flex items-center gap-2">
@@ -115,7 +125,9 @@ export function Footer({ cta = true }: { cta?: boolean }) {
 
       {/* Bottom */}
       <div className="border-t border-border/30">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-2 px-4 py-4 text-xs text-muted-foreground sm:flex-row">
+        <div
+          className={`mx-auto flex ${container} flex-col items-center justify-between gap-2 py-4 text-xs text-muted-foreground sm:flex-row`}
+        >
           <p>&copy; {new Date().getFullYear()} Risuko. MIT License.</p>
         </div>
       </div>

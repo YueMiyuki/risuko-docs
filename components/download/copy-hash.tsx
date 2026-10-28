@@ -3,7 +3,7 @@
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export function CopyHash({ hash }: { hash: string }) {
+export function CopyHash({ hash, file }: { hash: string; file?: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -13,7 +13,9 @@ export function CopyHash({ hash }: { hash: string }) {
     <button
       type="button"
       title={hash}
-      aria-label="Copy SHA-256 checksum"
+      aria-label={
+        file ? `Copy SHA-256 checksum of ${file}` : "Copy SHA-256 checksum"
+      }
       onClick={() => {
         navigator.clipboard.writeText(hash).then(
           () => {

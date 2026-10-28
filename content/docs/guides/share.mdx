@@ -1,0 +1,32 @@
+---
+title: Risuko Share
+description: "Send files between your devices with Risuko Share: direct, end-to-end encrypted peer-to-peer transfers built on iroh, paired with a short-lived code."
+---
+
+Risuko Share sends a file straight from one of your devices to another. It is built on [iroh](https://iroh.computer), and the transfer is peer-to-peer and end-to-end encrypted: the file goes directly between the two devices and is never uploaded to Risuko's servers.
+
+Share is in the desktop app's sidebar, next to RSS and Health.
+
+## Requirements
+
+Share needs a Risuko account. The account is optional for everything else in Risuko and is only used for cloud sync and Share.
+
+You can sign in with your email address (Risuko sends a one-time code) or with GitHub. Risuko never asks for or stores a password, and a sign-in lasts about 30 days.
+
+## How a transfer connects
+
+1. The sending device registers a short-lived **rendezvous record** with Risuko's server: a pairing code, a connection ticket, and the names and sizes of the files.
+2. The receiving device uses the pairing code to look up the ticket and connects to the sender directly.
+3. The file streams between the devices, end-to-end encrypted.
+
+Rendezvous records are single-use and expire after about an hour.
+
+When the two devices can't connect directly, the encrypted transfer falls back through public relay servers run by n0, the team behind iroh. Relays only carry encrypted bytes and cannot read your files.
+
+## Privacy
+
+- The file never passes through Risuko's servers, and its contents are never collected.
+- The connection ticket includes the sender's network address, so anyone holding the pairing code can see it. Share the code only with your own devices.
+- Risuko's server sees the file names and sizes for as long as the rendezvous record exists.
+
+The [privacy policy](/legal/privacy#file-sharing) has the full details.

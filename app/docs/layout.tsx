@@ -1,18 +1,28 @@
-import { source } from "@/lib/source";
+import { buttonVariants } from "fumadocs-ui/components/ui/button";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
-import { baseOptions } from "@/lib/layout.shared";
+import { MessageCircleIcon } from "lucide-react";
+import type { Metadata } from "next";
 import {
   AISearch,
   AISearchPanel,
   AISearchTrigger,
 } from "@/components/ai/search";
-import { MessageCircleIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { buttonVariants } from "fumadocs-ui/components/ui/button";
+import { baseOptions } from "@/lib/layout.shared";
+import { appName } from "@/lib/shared";
+import { source } from "@/lib/source";
+
+export const metadata: Metadata = {
+  title: { template: `%s | ${appName} Docs`, default: `${appName} Docs` },
+};
 
 export default function Layout({ children }: LayoutProps<"/docs">) {
   return (
-    <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
+    <DocsLayout
+      tree={source.getPageTree()}
+      {...baseOptions()}
+      sidebar={{ defaultOpenLevel: 1 }}
+    >
       <AISearch>
         <AISearchPanel />
         <AISearchTrigger

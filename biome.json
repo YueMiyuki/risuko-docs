@@ -12,7 +12,15 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.next", "!dist", "!build", "!.source"]
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.next",
+      "!dist",
+      "!build",
+      "!.source",
+      "!components/landing/teardown/*.generated.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

@@ -1,17 +1,7 @@
-import {
-  Apple,
-  ArrowUpRight,
-  Download,
-  Grid2x2,
-  type LucideIcon,
-  Monitor,
-  Package,
-  ShieldCheck,
-  Smartphone,
-  SquareTerminal,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight, Download } from "lucide-react";
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
 import { CopyHash } from "@/components/download/copy-hash";
 import {
   RecommendedDownload,
@@ -19,10 +9,17 @@ import {
 } from "@/components/download/recommended-download";
 import { Footer } from "@/components/footer";
 import { CopyCommand } from "@/components/landing/copy-command";
-import { INSTALLS } from "@/components/landing/feature-sections";
-import { displayFont } from "@/components/landing/fonts";
-import { buttonPrimary } from "@/components/landing/styles";
-import { cn } from "@/lib/cn";
+import { Paper } from "@/components/landing/paper";
+import {
+  figureRef,
+  PartFigure,
+  type PartOf,
+  TeardownFigure,
+  TeardownSprite,
+} from "@/components/landing/teardown/figure";
+import { DRAWING } from "@/components/landing/teardown/release-kit.generated";
+import { Spine } from "@/components/landing/teardown/spine";
+import { INSTALLS } from "@/lib/installs";
 import {
   type DownloadItem,
   formatSize,
@@ -33,25 +30,24 @@ import {
   type RecommendKey,
   type Release,
 } from "@/lib/release";
+import { downloadJsonLd, JsonLd, openGraph } from "@/lib/seo";
 import { gitConfig } from "@/lib/shared";
-import "../landing.css";
+import "../paper.css";
+
+const title = "Download Risuko for macOS, Windows, Linux & Android";
+const description =
+  "Download the latest Risuko release for macOS, Windows, Linux and Android, or the standalone CLI. Free and open source, with SHA-256 checksums to verify each file.";
 
 export const metadata: Metadata = {
-  title: "Download Risuko",
-  description:
-    "Download Risuko for macOS, Windows, Linux, and Android from a fast global mirror.",
+  title: { absolute: title },
+  description,
   alternates: { canonical: "/download" },
+  openGraph: openGraph({ url: "/download", title, description }),
 };
+
+type PartId = PartOf<typeof DRAWING>;
 
 const releasesUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/releases`;
-
-const ICONS: Record<PlatformId, LucideIcon> = {
-  macos: Apple,
-  windows: Grid2x2,
-  linux: Monitor,
-  android: Smartphone,
-  cli: SquareTerminal,
-};
 
 const HINTS: Partial<Record<PlatformId, string>> = {
   macos: "Not sure which chip you have? Apple menu → About This Mac.",
@@ -78,9 +74,44 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
-function Container({ children }: { children: ReactNode }) {
+function Section({
+  id,
+  no,
+  title,
+  lede,
+  parts,
+  reassemble,
+  children,
+}: {
+  id: string;
+  no: number;
+  title: string;
+  lede?: ReactNode;
+  parts?: PartId[];
+  reassemble?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div className="mx-auto w-full max-w-7xl px-5 sm:px-8">{children}</div>
+    <section
+      id={id}
+      data-spine-section
+      data-parts={parts?.join(" ") ?? ""}
+      data-reassemble={reassemble ? "" : undefined}
+      className="sec"
+    >
+      <header>
+        <p className="sec-meta">
+          <span className="sec-no">{String(no).padStart(2, "0")}</span>
+          {parts?.length ? (
+            <span className="sec-ref">{figureRef(DRAWING, parts)}</span>
+          ) : null}
+        </p>
+        {parts?.length ? <PartFigure drawing={DRAWING} parts={parts} /> : null}
+        <h2 className="sec-title">{title}</h2>
+        {lede ? <p className="sec-lede">{lede}</p> : null}
+      </header>
+      {children}
+    </section>
   );
 }
 
@@ -92,69 +123,50 @@ function DownloadRow({
   platform: string;
 }) {
   return (
-    <li className="flex items-center gap-3 py-3.5">
+    <li className="dl-row">
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-semibold">{item.label}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            {item.kind}
-          </span>
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <span className="font-medium">{item.label}</span>
+          <span className="tag">{item.kind}</span>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 font-mono text-xs text-muted-foreground">
           <span className="tabular-nums">{formatSize(item.asset.size)}</span>
-          {item.asset.sha256 ? <CopyHash hash={item.asset.sha256} /> : null}
+          {item.asset.sha256 ? (
+            <CopyHash hash={item.asset.sha256} file={item.asset.name} />
+          ) : null}
         </div>
       </div>
       <a
         href={item.asset.url}
         aria-label={`Download ${platform} ${item.label} ${item.kind}`}
-        className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3.5 text-sm font-semibold transition-[transform,border-color,color] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4"
+        className="btn btn-line btn-sm"
       >
-        <Download className="size-4" aria-hidden />
-        <span className="hidden sm:inline">Download</span>
+        <Download aria-hidden />
+        <span className="max-sm:hidden">Download</span>
       </a>
     </li>
   );
 }
 
-function Card({
-  icon: Icon,
-  title,
-  subtitle,
-  children,
+function Platform({
+  group,
+  no,
+  id,
 }: {
-  icon: LucideIcon;
-  title: string;
-  subtitle: string;
-  children: ReactNode;
+  group: PlatformGroup;
+  no: number;
+  id: string;
 }) {
-  return (
-    <div className="min-w-0 rounded-[1.75rem] border border-border bg-card p-6 sm:p-8">
-      <div className="flex items-center gap-4">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-          <Icon className="size-5" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <h2 className="font-display text-2xl font-bold tracking-[-0.02em]">
-            {title}
-          </h2>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function PlatformCard({ group }: { group: PlatformGroup }) {
   const hint = HINTS[group.id];
   return (
-    <Card
-      icon={ICONS[group.id]}
+    <Section
+      id={id}
+      no={no}
       title={group.name}
-      subtitle={group.requirement}
+      lede={group.requirement}
+      parts={[group.id]}
     >
-      <ul className="mt-6 divide-y divide-border/70 border-y border-border/70">
+      <ul className="dl-list">
         {group.items.map((item) => (
           <DownloadRow
             key={item.asset.name}
@@ -163,34 +175,22 @@ function PlatformCard({ group }: { group: PlatformGroup }) {
           />
         ))}
       </ul>
-      {hint ? (
-        <p className="mt-4 text-pretty text-sm text-muted-foreground">{hint}</p>
-      ) : null}
-    </Card>
+      {hint ? <p className="footnote">{hint}</p> : null}
+    </Section>
   );
 }
 
-function Unavailable() {
+function OutLink({ href, children }: { href: string; children: string }) {
   return (
-    <Container>
-      <div className="rounded-[1.75rem] border border-border bg-card p-8 sm:p-12">
-        <h2 className="font-display text-2xl font-bold tracking-[-0.02em]">
-          The release list is unavailable right now
-        </h2>
-        <p className="mt-3 max-w-[60ch] text-muted-foreground">
-          Every build is also published on GitHub.
-        </p>
-        <a
-          href={releasesUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(buttonPrimary, "mt-8")}
-        >
-          Open GitHub Releases
-          <ArrowUpRight className="h-4 w-4" />
-        </a>
-      </div>
-    </Container>
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-link"
+    >
+      {children}
+      <ArrowUpRight aria-hidden />
+    </a>
   );
 }
 
@@ -215,32 +215,27 @@ export default async function DownloadPage() {
 
   const released = release ? formatDate(release.publishedAt) : null;
   const title = release ? codename(release) : null;
+  const platforms = cli ? [...apps, cli] : apps;
+  const rows = release ? platforms.length + 3 : 2;
 
   return (
-    <div
-      className={cn(
-        "landing min-h-screen bg-background text-foreground",
-        displayFont.variable,
-      )}
-    >
-      <section className="relative overflow-hidden">
-        <div
-          aria-hidden
-          className="hero-dots pointer-events-none absolute inset-0"
-        />
-        <div className="relative mx-auto w-full max-w-7xl px-5 pt-12 pb-12 sm:px-8 sm:pt-16 sm:pb-16">
+    <Paper>
+      <JsonLd
+        data={downloadJsonLd(
+          release,
+          Object.values(options).map((option) => option.url),
+        )}
+      />
+      <Spine className="spine">
+        <section data-spine-section data-parts="" className="hero">
           {release ? (
-            <p className="mb-5 inline-flex flex-wrap items-center gap-x-2 rounded-full bg-primary/12 px-3.5 py-1.5 text-sm font-semibold text-primary">
+            <p className="tag">
               v{release.version}
-              {title ? (
-                <span className="font-medium opacity-80">· {title}</span>
-              ) : null}
+              {title ? ` · ${title}` : null}
             </p>
           ) : null}
-          <h1 className="font-display text-balance text-5xl font-extrabold leading-[1.02] tracking-[-0.03em] sm:text-6xl lg:text-7xl">
-            Download Risuko
-          </h1>
-          <p className="mt-5 max-w-[56ch] text-pretty text-lg leading-relaxed text-muted-foreground">
+          <h1 className="hero-title">Download Risuko</h1>
+          <p className="hero-lede">
             Free and open source for macOS, Windows, Linux, and Android.
             {release?.source === "mirror"
               ? " Files are served from Cloudflare's global network and mirrored from GitHub Releases."
@@ -248,122 +243,123 @@ export default async function DownloadPage() {
             {released ? ` Released ${released}.` : null}
           </p>
           {release ? (
-            <div className="mt-8">
+            <div className="actions">
               <RecommendedDownload options={options} />
             </div>
           ) : null}
-        </div>
-      </section>
+        </section>
 
-      {release ? (
-        <>
-          <section id="platforms" className="scroll-mt-20">
-            <Container>
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                {apps.map((group) => (
-                  <PlatformCard key={group.id} group={group} />
+        <div
+          data-spine-figure
+          className="spine-fig"
+          style={{ "--rows": rows } as CSSProperties}
+        >
+          <div className="spine-sticky">
+            <TeardownFigure drawing={DRAWING} />
+          </div>
+        </div>
+
+        {release ? (
+          <>
+            {platforms.map((group, i) => (
+              <Platform
+                key={group.id}
+                group={group}
+                no={i + 1}
+                id={i === 0 ? "platforms" : group.id}
+              />
+            ))}
+
+            <Section
+              id="package-managers"
+              no={platforms.length + 1}
+              title="Package managers"
+              lede="Homebrew and npm"
+              parts={["packages"]}
+            >
+              <div className="installs">
+                {INSTALLS.map((group) => (
+                  <div key={group.manager}>
+                    <h3 className="installs-head">{group.manager}</h3>
+                    <div className="space-y-4">
+                      {group.items.map((item) => (
+                        <div key={item.command}>
+                          <div className="mono-note mb-1.5">{item.label}</div>
+                          <CopyCommand command={item.command} variant="plain" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </Container>
-          </section>
+            </Section>
 
-          <section className="pt-5">
-            <Container>
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                {cli ? <PlatformCard group={cli} /> : null}
-                <Card
-                  icon={Package}
-                  title="Package managers"
-                  subtitle="Homebrew and npm"
-                >
-                  <div className="mt-6 space-y-6">
-                    {INSTALLS.map((group) => (
-                      <div key={group.manager}>
-                        <div className="mb-3 font-display text-lg font-semibold">
-                          {group.manager}
-                        </div>
-                        <div className="space-y-3">
-                          {group.items.map((item) => (
-                            <div key={item.command}>
-                              <div className="mb-1.5 pl-5 font-mono text-xs text-muted-foreground">
-                                {item.label}
-                              </div>
-                              <CopyCommand command={item.command} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-            </Container>
-          </section>
-
-          <section className="pt-5 pb-20 sm:pb-28">
-            <Container>
-              <div className="grid grid-cols-1 gap-8 rounded-[1.75rem] border border-primary/25 bg-primary/10 p-6 sm:p-10 lg:grid-cols-2 lg:gap-12">
+            <Section
+              id="verify"
+              no={platforms.length + 2}
+              title="Verify your download"
+              lede="Click a checksum above to copy it, then compare it with the SHA-256 of the file you downloaded."
+              parts={["seal"]}
+              reassemble
+            >
+              <div className="installs">
                 <div>
-                  <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                    <ShieldCheck className="size-5" aria-hidden />
-                  </span>
-                  <h2 className="mt-5 font-display text-3xl font-bold tracking-[-0.02em]">
-                    Verify your download
-                  </h2>
-                  <p className="mt-3 max-w-[52ch] text-pretty text-muted-foreground">
-                    Click a checksum above to copy it, then compare it with the
-                    SHA-256 of the file you downloaded.
-                  </p>
-                  <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold">
-                    <a
-                      href={`${releasesUrl}/tag/${release.tag}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-primary hover:underline"
-                    >
-                      Release notes
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    </a>
-                    <a
-                      href={releasesUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-primary hover:underline"
-                    >
-                      Older versions on GitHub
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    </a>
-                  </div>
+                  <div className="mono-note mb-1.5">macOS and Linux</div>
+                  <CopyCommand
+                    command={`shasum -a 256 Risuko_${release.version}_darwin_arm64.dmg`}
+                    variant="plain"
+                  />
                 </div>
-                <div className="min-w-0 space-y-4 self-center">
-                  <div>
-                    <div className="mb-1.5 pl-5 font-mono text-xs text-muted-foreground">
-                      macOS and Linux
-                    </div>
-                    <CopyCommand
-                      command={`shasum -a 256 Risuko_${release.version}_darwin_arm64.dmg`}
-                    />
-                  </div>
-                  <div>
-                    <div className="mb-1.5 pl-5 font-mono text-xs text-muted-foreground">
-                      Windows PowerShell
-                    </div>
-                    <CopyCommand
-                      command={`Get-FileHash Risuko_${release.version}_win32_x64.setup.exe`}
-                    />
-                  </div>
+                <div>
+                  <div className="mono-note mb-1.5">Windows PowerShell</div>
+                  <CopyCommand
+                    command={`Get-FileHash Risuko_${release.version}_win32_x64.setup.exe`}
+                    variant="plain"
+                  />
                 </div>
               </div>
-            </Container>
+              <div className="mt-6 flex flex-wrap gap-x-6">
+                <OutLink href={`${releasesUrl}/tag/${release.tag}`}>
+                  Release notes
+                </OutLink>
+                <OutLink href={releasesUrl}>Older versions on GitHub</OutLink>
+                <Link
+                  href="/docs/getting-started/quick-start"
+                  className="text-link"
+                >
+                  Quick start guide
+                  <ArrowRight aria-hidden />
+                </Link>
+              </div>
+            </Section>
+          </>
+        ) : (
+          <section data-spine-section data-parts="" className="sec">
+            <header>
+              <p className="sec-meta">
+                <span className="sec-no">01</span>
+              </p>
+              <h2 className="sec-title">
+                The release list is unavailable right now
+              </h2>
+              <p className="sec-lede">
+                Every build is also published on GitHub.
+              </p>
+            </header>
+            <a
+              href={releasesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-ink"
+            >
+              Open GitHub Releases
+              <ArrowUpRight aria-hidden />
+            </a>
           </section>
-        </>
-      ) : (
-        <section className="pb-20 sm:pb-28">
-          <Unavailable />
-        </section>
-      )}
-
-      <Footer cta={false} />
-    </div>
+        )}
+      </Spine>
+      <TeardownSprite drawing={DRAWING} />
+      <Footer cta={false} wide />
+    </Paper>
   );
 }
